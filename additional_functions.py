@@ -484,7 +484,13 @@ def pretty_print(pristine_nodes, jumper):
 		except AttributeError:
 			that = '{}\t{}\t'.format(scoopable, discoverer)
 		siht = '{}\t{}\t{}'.format(x_, y_, z_)
-		print(this + that + siht)
+
+		try:
+			print(this + that + siht)
+		except UnicodeEncodeError:
+			foo = 'LOOK_UP_MANUALLY!_NON-ASCII_CHARACTERS_IN_NAME.'
+			that = '{}\t{}\t'.format(scoopable, foo)
+			print(this + that + siht)
 
 
 
