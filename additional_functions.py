@@ -511,28 +511,35 @@ def better_jumper(i, max_tries, jumper, data):
 	number_jumps = len(jumper.visited_systems)
 
 	this = 'Try {} of {}. '.format(i + 1, max_tries)
-	that = 'Did {} jumps with {} level 3 boosts, '.format(number_jumps, new_level_3_boosts)
-	siht = '{} level 2 boosts, {} level 1 boosts'.format(new_level_2_boosts, new_level_1_boosts)
+	that = 'Did {} jumps with {} level 3 boosts, '.format(number_jumps, \
+																new_level_3_boosts)
+	siht = '{} level 2 boosts, {} level 1 boosts'.format(new_level_2_boosts, \
+																new_level_1_boosts)
 	print(this + that + siht)
 
 	if number_jumps < fewest_jumps:
 		fewest_jumps = number_jumps
 		fewest_jumps_jumper = jumper
 
+	first_condition = new_level_3_boosts < level_3_boosts
+	second_condition = new_level_2_boosts < level_2_boosts
+	third_condition = new_level_1_boosts < level_1_boosts
+
 	# If the path with the fewest level 1 boosts is found during the two first
 	# loops, it will not be found. I don't really care, since the differences
 	# are not that big.
-	if new_level_3_boosts < level_3_boosts:
+	if first_condition:
 		level_3_boosts = new_level_3_boosts
 		most_economic_jumper = jumper
-	elif new_level_2_boosts < level_2_boosts:
+	elif first_condition and second_condition:
 		level_2_boosts = new_level_2_boosts
 		most_economic_jumper = jumper
-	elif new_level_1_boosts < level_1_boosts:
+	elif first_condition and second_condition and third_condition:
 		level_1_boosts = new_level_1_boosts
 		most_economic_jumper = jumper
 
-	data = (most_economic_jumper, fewest_jumps_jumper, fewest_jumps, level_3_boosts, level_2_boosts, level_1_boosts)
+	data = (most_economic_jumper, fewest_jumps_jumper, fewest_jumps, \
+								level_3_boosts, level_2_boosts, level_1_boosts)
 
 	return data
 
@@ -550,7 +557,8 @@ def find_path(max_tries, stars, start_star, end_star, pristine_nodes):
 	level_1_boosts = 99999
 
 	# This is just to keep the list of parameters for better_jumper() short.
-	data = (most_economic_jumper, fewest_jumps_jumper, fewest_jumps, level_3_boosts, level_2_boosts, level_2_boosts)
+	data = (most_economic_jumper, fewest_jumps_jumper, fewest_jumps, \
+								level_3_boosts, level_2_boosts, level_2_boosts)
 
 	i = 0
 	while i < max_tries:
@@ -589,7 +597,8 @@ def print_jumper_information(pristine_nodes, most_economic_jumper, fewest_jumps_
 		level_2_boosts = len([x for x in most_economic_jumper.jump_types if '2' in x])
 		level_1_boosts = len([x for x in most_economic_jumper.jump_types if '1' in x])
 
-		this = '{} => {}, {}, {}'.format(number_jumps, level_3_boosts, level_2_boosts, level_1_boosts)
+		this = '{} => {}, {}, {}'.format(number_jumps, level_3_boosts, \
+													level_2_boosts, level_1_boosts)
 		print("most economic: ", this)
 
 		input("Below is a list of ALL stars visited (press ENTER): ")
@@ -603,7 +612,8 @@ def print_jumper_information(pristine_nodes, most_economic_jumper, fewest_jumps_
 		level_2_boosts = len([x for x in fewest_jumps_jumper.jump_types if '2' in x])
 		level_1_boosts = len([x for x in fewest_jumps_jumper.jump_types if '1' in x])
 
-		that = '{} => {}, {}, {}'.format(number_jumps, level_3_boosts, level_2_boosts, level_1_boosts)
+		that = '{} => {}, {}, {}'.format(number_jumps, level_3_boosts, \
+													level_2_boosts, level_1_boosts)
 		print("fewest jumps: ", that)
 
 		print()
