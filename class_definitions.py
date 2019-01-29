@@ -135,40 +135,29 @@ class Node(object):
 	# This is basically the method called on each node-instance if the 
 	# node houses a jumper.
 	def _send_jumpers(self, this_distance):
-		if self.jumper:
-			self._check_free_stars(this_distance)
+		# The .can_jump_to attribute is set when ._check_free_stars() is 
+		# called in af.get_nodes_that_can_send_jumpers() which is calles
+		# at the start of the while-loop in explore_path()
+		for name in self.can_jump_to:
+			new_jumper = deepcopy(self.jumper)
+			new_jumper.visited_systems.append(name)
+			new_jumper._add_jump_types(this_distance)
 
-			if len(self.can_jump_to) == 0:
-				# This is to give the algorithm a hint if a jump took place
-				# or not, and if no jumps took place to check if boost jumps
-				# are possible.
-				return False
+			next_star_data = self.all_nodes[name].data
+			distance = self._this_distance(next_star_data)
+			new_jumper.distances.append(distance)
 
-			for name in self.can_jump_to:
-				new_jumper = deepcopy(self.jumper)
-				new_jumper.visited_systems.append(name)
-				new_jumper._add_jump_types(this_distance)
-				
-				next_star_data = self.all_nodes[name].data
-				distance = self._this_distance(next_star_data)
-				new_jumper.distances.append(distance)
+			next_star = self.all_nodes[name]
+			if next_star.scoopable:
+				new_jumper.jumps_left = deepcopy(new_jumper.max_jumps)
+			else:
+				new_jumper.jumps_left -= 1
 
-				next_star = self.all_nodes[name]
-				if next_star.scoopable:
-					new_jumper.jumps_left = deepcopy(new_jumper.max_jumps)
-				else:
-					new_jumper.jumps_left -= 1
+			next_star.jumper = new_jumper
+			next_star.visited = True
 
-				next_star.jumper = new_jumper
-				next_star.visited = True
+		return True
 
-			return True
-
-		# Since the return value of this function will be used to determine
-		# if a jump was performed or not, it has to return False in case that 
-		# no jumper was here that that could have jumped.
-		else:
-			return False
 
 
 
