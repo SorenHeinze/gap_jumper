@@ -135,16 +135,15 @@ with open(filename, 'wb') as f:
 
 start_star, end_star = af.find_closest(stars, start_coords, end_coords)
 
-most_economic_jumper, fewest_jumps_jumper = af.find_path(max_tries, stars, \
-											start_star, end_star, pristine_nodes)
+fewest_jumps_jumper = af.find_path(max_tries, stars, start_star, end_star, \
+																pristine_nodes)
 
 print()
 print("Start at: ", start_star)
 print("  End at: ", end_star)
 print("\nNumber of stars considered: ", len(stars))
 
-af.print_jumper_information(pristine_nodes, most_economic_jumper, fewest_jumps_jumper)
-
+af.print_jumper_information(pristine_nodes, fewest_jumps_jumper)
 
 
 
