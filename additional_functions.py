@@ -299,8 +299,34 @@ def create_jumper_at_start(start_star, all_nodes):
 	all_nodes[starname].jumper = jumper
 	all_nodes[starname].visited = True
 
-	final_node = all_nodes[starname]
 
+# Problem: 
+# 1.: Assume no regular jumps are possible. Thus this_distance in explore_path()
+# will be set to 1 (or 2 etc.) for ALL stars.
+# 2.: From star A to star B a boosted jumps take place. Star B contains now
+# a jumper.
+# 3.: If star B has NOT been "called" in the while loop in explore_path() 
+# it will be "called" after star A had sent a jumper to it. However, 
+# this_distance is still NOT set back to zero. Thus, the jumper at star B 
+# jumps now ALSO a boosted jump to star C.
+# 
+# This leads to more boosted jumps than absolute necessary. An extreme case I 
+# had once were ver 5 grade three boosted jumps over 600 ly instead of one
+# grade three boosted jumps at the place where it was necessary and just regular 
+# jumps afterwards.
+# 
+# Solution: if this_distance != 0 allow jumps JUST from stars that have 
+# free stars in their vicinity.
+# This is what this function takes care of.
+def get_nodes_that_can_send_jumpers(all_nodes, this_distance):
+	starnames = []
+	for starname, node in all_nodes.items():
+		if node.jumper:
+			node._check_free_stars(this_distance)
+			if len(node.can_jump_to) != 0:
+				starnames.append(starname)
+
+	return starnames
 
 
 # This does all the above and finds a way from start to end (or not).
@@ -311,29 +337,9 @@ def explore_path(all_nodes, stars, final_node):
 	this_distance = 0
 	magick_fuel = False
 	while not final_node.visited:
-		jumped = False
+		starnames = get_nodes_that_can_send_jumpers(all_nodes, this_distance)
 
-		# I will run explore_path to find the best way. However, it seems to be
-		# that once the program is called, that .items() returns the items
-		# always in the same order. Thus explore_path() will return always
-		# the same path. This is avoided by shuffling.
-		starnames = list(stars.keys())
-		shuffle(starnames)
-
-		for starname in starnames:
-			node = all_nodes[starname]
-			jump_performed = node._send_jumpers(this_distance)
-
-			# To continue with the loop it is enough if ONE jumper was send.
-			# However if I use just the return value of _send_jumpers() one 
-			# may set it to True and the next back to False. Thus the control 
-			# parameter for continuing the while-loop (=> jumped) needs to be 
-			# outside the for-loop, but be able to set within the latter. Thus 
-			# I have jump_performed.
-			if jump_performed:
-				jumped = True
-
-		if not jumped:
+		if len(starnames) == 0:
 			this_distance += 1
 			# When stuck, give (once) a magick re-fuel. Do this just again, if a
 			# jump occured after the magick re-fuel.
@@ -355,6 +361,16 @@ def explore_path(all_nodes, stars, final_node):
 				break
 
 		else:
+			# I will run explore_path to find the best way. However, it seems to be
+			# that once the program is called, that .items() returns the items
+			# always in the same order. Thus explore_path() will return always
+			# the same path. This is avoided by shuffling.
+			shuffle(starnames)
+
+			for starname in starnames:
+				node = all_nodes[starname]
+				node._send_jumpers(this_distance)
+
 			this_distance = 0
 			# If a jump is possible after a magick fuel event, everything can
 			# be done as before. This includes that after the jump more magick 
@@ -498,12 +514,11 @@ def pretty_print(pristine_nodes, jumper):
 # the current loop uses less jumps or less boosts than the current best jumpers.
 # < data > is a tuple that contains information from the previous jumps
 def better_jumper(i, max_tries, jumper, data):
-	most_economic_jumper = data[0]
-	fewest_jumps_jumper = data[1]
-	fewest_jumps = data[2]
-	level_3_boosts = data[3]
-	level_2_boosts = data[4]
-	level_1_boosts = data[5]
+	fewest_jumps_jumper = data[0]
+	fewest_jumps = data[1]
+	level_3_boosts = data[2]
+	level_2_boosts = data[3]
+	level_1_boosts = data[4]
 
 	new_level_3_boosts = len([x for x in jumper.jump_types if '3' in x])
 	new_level_2_boosts = len([x for x in jumper.jump_types if '2' in x])
@@ -521,25 +536,8 @@ def better_jumper(i, max_tries, jumper, data):
 		fewest_jumps = number_jumps
 		fewest_jumps_jumper = jumper
 
-	first_condition = new_level_3_boosts < level_3_boosts
-	second_condition = new_level_2_boosts < level_2_boosts
-	third_condition = new_level_1_boosts < level_1_boosts
-
-	# If the path with the fewest level 1 boosts is found during the two first
-	# loops, it will not be found. I don't really care, since the differences
-	# are not that big.
-	if first_condition:
-		level_3_boosts = new_level_3_boosts
-		most_economic_jumper = jumper
-	elif first_condition and second_condition:
-		level_2_boosts = new_level_2_boosts
-		most_economic_jumper = jumper
-	elif first_condition and second_condition and third_condition:
-		level_1_boosts = new_level_1_boosts
-		most_economic_jumper = jumper
-
-	data = (most_economic_jumper, fewest_jumps_jumper, fewest_jumps, \
-								level_3_boosts, level_2_boosts, level_1_boosts)
+	data = (fewest_jumps_jumper, fewest_jumps, level_3_boosts, level_2_boosts, \
+																	level_1_boosts)
 
 	return data
 
@@ -549,7 +547,6 @@ def better_jumper(i, max_tries, jumper, data):
 # economic path as often as < max_tries >.
 def find_path(max_tries, stars, start_star, end_star, pristine_nodes):
 	final_name = list(end_star.keys())[0]
-	most_economic_jumper = None
 	fewest_jumps_jumper = None
 	fewest_jumps = 99999
 	level_3_boosts = 99999
@@ -557,8 +554,8 @@ def find_path(max_tries, stars, start_star, end_star, pristine_nodes):
 	level_1_boosts = 99999
 
 	# This is just to keep the list of parameters for better_jumper() short.
-	data = (most_economic_jumper, fewest_jumps_jumper, fewest_jumps, \
-								level_3_boosts, level_2_boosts, level_2_boosts)
+	data = (fewest_jumps_jumper, fewest_jumps, level_3_boosts, level_2_boosts, \
+																	level_2_boosts)
 
 	i = 0
 	while i < max_tries:
@@ -582,29 +579,13 @@ def find_path(max_tries, stars, start_star, end_star, pristine_nodes):
 
 		i += 1
 
-	most_economic_jumper = data[0]
-	fewest_jumps_jumper = data[1]
+	fewest_jumps_jumper = data[0]
 
-	return most_economic_jumper, fewest_jumps_jumper
+	return fewest_jumps_jumper
 
 
 # To print the information about the pat in a good way.
-def print_jumper_information(pristine_nodes, most_economic_jumper, fewest_jumps_jumper):
-	if most_economic_jumper:
-		print()
-		number_jumps = len(most_economic_jumper.visited_systems)
-		level_3_boosts = len([x for x in most_economic_jumper.jump_types if '3' in x])
-		level_2_boosts = len([x for x in most_economic_jumper.jump_types if '2' in x])
-		level_1_boosts = len([x for x in most_economic_jumper.jump_types if '1' in x])
-
-		this = '{} => {}, {}, {}'.format(number_jumps, level_3_boosts, \
-													level_2_boosts, level_1_boosts)
-		print("most economic: ", this)
-
-		input("Below is a list of ALL stars visited (press ENTER): ")
-		pretty_print(pristine_nodes, most_economic_jumper)
-		print()
-
+def print_jumper_information(pristine_nodes, fewest_jumps_jumper):
 	if fewest_jumps_jumper:
 		print()
 		number_jumps = len(fewest_jumps_jumper.visited_systems)
@@ -619,26 +600,4 @@ def print_jumper_information(pristine_nodes, most_economic_jumper, fewest_jumps_
 		print()
 		input("Below is a list of ALL stars visited (press ENTER): ")
 		pretty_print(pristine_nodes, fewest_jumps_jumper)
-		print()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+	print()
