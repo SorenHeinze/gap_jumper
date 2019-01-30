@@ -24,6 +24,7 @@ from math import sqrt
 from copy import deepcopy
 from random import shuffle
 import json
+import requests
 
 # Problem that may occur: No jumps take place because all possible jumps
 # go to unscoopble stars, the jumper has just one jump left and within
@@ -59,197 +60,193 @@ def refuel_stuck_jumpers(all_nodes):
 
 
 
-# This finds the closest system to a given startpoint
-def distance_to_start(start_coords, star_coords, start_distance):
-	x_0 = star_coords['x']
-	y_0 = star_coords['y']
-	z_0 = star_coords['z']
+# This finds the closest system to a given point. Used to find the 
+# systems closest to the start- and end-coords.
+def distance_to_point(point_1_coords, point_2_coords):
+	x_0 = point_2_coords['x']
+	y_0 = point_2_coords['y']
+	z_0 = point_2_coords['z']
 
-	x_1 = start_coords['x']
-	y_1 = start_coords['y']
-	z_1 = start_coords['z']
+	x_1 = point_1_coords['x']
+	y_1 = point_1_coords['y']
+	z_1 = point_1_coords['z']
 
-	distance_to_start = sqrt((x_1 - x_0)**2 + (y_1 - y_0)**2 + (z_1 - z_0)**2)
+	distance_to_point = sqrt((x_1 - x_0)**2 + (y_1 - y_0)**2 + (z_1 - z_0)**2)
 
-	if distance_to_start < start_distance:
-		start_distance = distance_to_start
-
-	return start_distance
+	return distance_to_point
 
 
 
-# Dito for the endpoint.
-def distance_to_end(end_coords, star_coords, end_distance):
-	x_0 = star_coords['x']
-	y_0 = star_coords['y']
-	z_0 = star_coords['z']
+# Things that are needed to find a point on the line between the start- and 
+# the end-coords.
+def calculate_line_stuff(start_coords, end_coords):
+	x_ = end_coords['x'] - start_coords['x']
+	y_ = end_coords['y'] - start_coords['y']
+	z_ = end_coords['z'] - start_coords['z']
 
-	x_2 = end_coords['x']
-	y_2 = end_coords['y']
-	z_2 = end_coords['z']
+	distance = sqrt(x_**2 + y_**2 + z_**2)
 
-	distance_to_end = sqrt((x_2 - x_0)**2 + (y_2 - y_0)**2 + (z_2 - z_0)**2)
+	# < unit_vector > for the line from start- to end-coords.
+	unit_vector = {}
+	unit_vector['x'] = x_ / distance
+	unit_vector['y'] = y_ / distance
+	unit_vector['z'] = z_ / distance
 
-	if distance_to_end < end_distance:
-		end_distance = distance_to_end
+	start_of_line = {}
+	start_of_line['x'] = start_coords['x'] - 400 * unit_vector['x']
+	start_of_line['y'] = start_coords['y'] - 400 * unit_vector['y']
+	start_of_line['z'] = start_coords['z'] - 400 * unit_vector['z']
 
-	return end_distance
+	end_of_line = {}
+	end_of_line['x'] = end_coords['x'] + 400 * unit_vector['x']
+	end_of_line['y'] = end_coords['y'] + 400 * unit_vector['y']
+	end_of_line['z'] = end_coords['z'] + 400 * unit_vector['z']
 
-
-
-# Intuitively is the calculation of distance_within_500_Ly_from_line() more
-# processing intensive than just checking if some values are larger or smaller
-# to a given value.
-# Hence, I check first if the stars are in a box of which the start and end 
-# system (+ 500 Ly) define the walls. If this is the case 
-# distance_within_500_Ly_from_line() will be called, too.
-# 
-# This function defines the limits of this box.
-def x_y_z_limits(start_coords, end_coords):
-	x_1 = start_coords['x']
-	y_1 = start_coords['y']
-	z_1 = start_coords['z']
-
-	x_2 = end_coords['x']
-	y_2 = end_coords['y']
-	z_2 = end_coords['z']
-
-	max_x = max(x_1, x_2) + 500
-	max_y = max(y_1, y_2) + 500
-	max_z = max(z_1, z_2) + 500
-
-	min_x = min(x_1, x_2) - 500
-	min_y = min(y_1, y_2) - 500
-	min_z = min(z_1, z_2) - 500
-
-	return (max_x, max_y, max_z), (min_x, min_y, min_z)
-
-
-
-# Between the start- and endpoint a line exists. Don't take stars which are 
-# more than 500 Ly away from this line. So I basically just want to have 
-# stars in a tube from startpoint to endpoint with a diameter of 1000 Ly.
-# 
-# The number 500 seems to be a sweet point. Some testing revealed that 1000
-# will lead to many more stars, but not significantly better results. Using
-# 250 (or even less) results in very man boosted jumps, which are to be 
-# avoided.
-def distance_within_500_Ly_from_line(start_coords, end_coords, star_coords):
-	x_0 = star_coords['x']
-	y_0 = star_coords['y']
-	z_0 = star_coords['z']
-
-	x_1 = start_coords['x']
-	y_1 = start_coords['y']
-	z_1 = start_coords['z']
-
-	x_2 = end_coords['x']
-	y_2 = end_coords['y']
-	z_2 = end_coords['z']
-
-	# From here: http://mathworld.wolfram.com/Point-LineDistance3-Dimensional.html
-	first = (x_1 - x_0)**2 + (y_1 - y_0)**2 + (z_1 - z_0)**2
-
-	numerator_1 = (x_1 - x_0) * (x_2 - x_1)
-	numerator_2 = (y_1 - y_0) * (y_2 - y_1)
-	numerator_3 = (z_1 - z_0) * (z_2 - z_1)
-
-	numerator = (numerator_1 + numerator_2 + numerator_3)**2
-
-	denominator = (x_1 - x_2)**2 + (y_1 - y_2)**2 + (z_1 - z_2)**2
-
-	distance_squared = first - numerator / denominator
-
-	if distance_squared <= 250000.0:
-		return True
-
-
-
-# This function checks for all stars if these are within the "box" (see 
-# comment to x_y_z_limits()) and if this is the case it does the calculation 
-# if the star in question is within the "tube" (see comment to 
-# distance_within_500_Ly_from_line()).
-# If both is the case True is returned.
-def within_limits(max_limits, min_limits, start_coords, end_coords, data):
-	x_ = data['coords']['x']
-	y_ = data['coords']['y']
-	z_ = data['coords']['z']
-
-	# Oh yes that is right what's written here. I've figured by accident out 
-	# that I actually can do it this way and I like it :) . 
-	x_ok = min_limits[0] <= x_ and x_ <= max_limits[0]
-	y_ok = min_limits[1] <= y_ and y_ <= max_limits[1]
-	z_ok = min_limits[2] <= z_ and z_ <= max_limits[2]
-
-	if x_ok and y_ok and z_ok:
-		if distance_within_500_Ly_from_line(start_coords, end_coords, \
-															data['coords']):
-			return True
+	# I need two vectors perpendicular to the unit_vector (along the line) to 
+	# be able to get the center-coords of the cubes along the line (see
+	# comment in stars_in_cube).
+	# I have just ONE vector, the unit_vector. Fortunately is the cross product 
+	# between two vectors perpendicular to both. Thus I need just the second
+	# vector. 
+	# Fortunately (again), in 3D I just need to switch two "components"
+	# add a minus to the second and set the third component to zero to get a 
+	# vector perpendicular to the original vector. 
+	# Example: 
+	# vector = 3x + 4y + 5z
+	# perpendicular = 4x - 3y + 0z
+	# ATTENTION: Make sure that not both of the switched components are zero.
+	perpendicular_vector_1 = {}
+	if unit_vector['y'] != 0:
+		first = unit_vector['y']
+		second = -unit_vector['x']
+		third = 0
 	else:
-		return False
+		first = unit_vector['z']
+		second = 0
+		third = -unit_vector['x']
+
+	# Don't forget to normalize.
+	length = sqrt(first**2 + second**2 + third**2)
+	perpendicular_vector_1['x'] = first / length
+	perpendicular_vector_1['y'] = second / length
+	perpendicular_vector_1['z'] = third / length
+
+	# And now the cross product to get the second perpendicular vector.
+	# Since the former two are already normalized, it will automatically have 
+	# unit length.
+	a_1 = unit_vector['x']
+	a_2 = unit_vector['y']
+	a_3 = unit_vector['z']
+
+	b_1 = perpendicular_vector_1['x']
+	b_2 = perpendicular_vector_1['y']
+	b_3 = perpendicular_vector_1['z']
+
+	perpendicular_vector_2 = {}
+	perpendicular_vector_2['x'] = a_2 * b_3 - a_3 * b_2
+	perpendicular_vector_2['y'] = a_3 * b_1 - a_1 * b_3
+	perpendicular_vector_2['z'] = a_1 * b_2 - a_2 * b_1
+
+	return unit_vector, perpendicular_vector_1, perpendicular_vector_2, start_of_line, end_of_line
 
 
+# EDSM API can get me all stars in a cube with a side length of 1000 ly.
+# Testing has shown that I need cubes with a side length of 500 ly to get 
+# good results in regions with a really low star density.
+# Thus I build such cubes (well almost cubes) by stacking smaller 5 x 5 x 5
+# cubes on each other. 
+# This is what happens here.
+# Afterwards I move one cube length along the line and do the same. Stars
+# that are "counted" again will be removed. But the latter two things are 
+# taking place in find_systems() and extract_information().
+def stars_in_cubes_perpendicular_to_line(center_coords, perpendicular_vector_1, \
+															perpendicular_vector_2):
+	url = 'https://www.edsm.net/api-v1/cube-systems'
+	counter_1 = -2
+	counter_2 = -2
 
-# This is just to keep find_systems() more tidy.
-def get_star_into_dict(stars, start_coords, end_coords, \
-											max_limits, min_limits, data):
-	if within_limits(max_limits, min_limits, start_coords, end_coords, data):
-		star_data = data['coords']
-		star_data.update({'discoverer':None})
-		star_data.update({'scoopable':None})
+	all_stars = []
+	i = 0
+	while counter_1 < 3:
+		while counter_2 < 3:
+			print(i) 
+			i+= 1
+			x_ = center_coords['x'] + 200 * counter_1 * perpendicular_vector_1['x'] + \
+												200 * counter_2 * perpendicular_vector_2['x']
+			y_ = center_coords['y'] + 200 * counter_1 * perpendicular_vector_1['y'] + \
+												200 * counter_2 * perpendicular_vector_2['y']
+			z_ = center_coords['z'] + 200 * counter_1 * perpendicular_vector_1['z'] + \
+												200 * counter_2 * perpendicular_vector_2['z']
 
-		stars[data['name']] = star_data
+			payload = {'x':x_, 'y':y_, 'z':z_, 'size':200, 'showCoordinates':1, \
+																'showPrimaryStar':1}
+			systems = requests.get(url, params = payload)
+			all_stars.append(systems.json())
+
+			counter_2 += 1
+
+		counter_1 += 1
+		counter_2 = -2
+
+	return all_stars
 
 
+# Of all the information returned by stars_in_cubes_perpendicular_to_line()
+# I need JUST the things processed in this function
+# < stars > is a dict which contains each systems information between start- 
+# and end-coords in the given corridor of stacked cubes as returned by 
+# stars_in_cubes_perpendicular_to_line().
+def extract_information(stars, this_section_stars):
+	for element in this_section_stars:
+		# An element in this_section_stars can be a list with one or
+		# more dicts or an empty dict.
+		if len(element) > 0:
+			for this_dict in element:
+				starname = this_dict['name']
+				coords = this_dict['coords']
+				scoopable = this_dict['primaryStar']['isScoopable']
 
-# This is just to keep find_systems() more tidy.
-def create_data_from_line(line):
-	# I need to read line for line, however, at the end of each line a 
-	# < , > appears, which can not be read by json.loads().
-	# Also are there whitespaces in the beginning. Hence, I first get 
-	# rid of the latter and then ...
-	foo = line.strip()
-	# ... use the remaining information except for the very last comma.
-	# ATTENTION: The very last entry does NOT have a comma at the end.
-	# Hence, the if-condition here.
-	if foo[-1] == ',':
-		bar = foo[:(len(foo) - 1)]
-	else:
-		bar = foo
+				stars[starname] = {}
+				stars[starname].update(coords)
+				stars[starname]['scoopable'] = scoopable
 
-	return json.loads(bar)
-
+	return stars
 
 
 # This does all of the above.
 # < start_coords > and < end_coords > are dicts with the (approximate) 
 # coordinates of the star at the start and the star at the end.
 def find_systems(start_coords, end_coords, infile):
-	max_limits, min_limits = x_y_z_limits(start_coords, end_coords)
+	# < unit_vector > is for the line from start- to end-coords.
+	unit_vector, perpendicular_vector_1, perpendicular_vector_2, start_of_line, \
+		  end_of_line = calculate_line_stuff(start_coords, end_coords)
 
 	stars = {}
+	center_coords = start_of_line
+	# Due to float and rounding errors can I not set the break condition 
+	# directly to reaching the end_of_line. However, the worst difference can 
+	# maximaly be 100 ly, which is a value I can live with, since end_of_line
+	# is already 500 ly away from end_coords.
+	# I use a high number here and not the actual distance for the very first 
+	# loop, so that (very) short routes are covered, too.
+	difference = 99999999
+	while difference > 100:
+		difference = distance_to_point(center_coords, end_of_line)
 
-	i = 0
-	with open(infile, 'r', encoding='utf-8-sig') as f:
-		# DON'T READ THE COMPLETE FILE!!! THIS WILL RUIN YOUR DAY BY EATING 
-		# UP ALL THE MEMORY!
-		# Rather read it line for line and store just what is needed.
-		for line in f:
-			i += 1
-			# I want to convert each line to a dict by using json.
-			# However, since I'm not loading the complete file at once, some 
-			# lines are not readable with json. Hence, I use "name" as a 
-			# keyword to figure out if a line can be read.
-			if 'name' in line:
-				data = create_data_from_line(line)
+		this = "Getting all systems between start and end "
+		that = "(distance = {} ly). This will take some time...".format(int(difference))
+		print(this + that)
 
-				get_star_into_dict(stars, start_coords, end_coords, \
-											max_limits, min_limits, data)
+		this_section_stars = stars_in_cubes_perpendicular_to_line(center_coords, \
+										perpendicular_vector_1, perpendicular_vector_2)
+		print(this_section_stars)
+		stars = extract_information(stars, this_section_stars)
 
-			# Just for information how far the calculation has become.
-			if i % 1000000 == 0:
-				print("checked star #{} ...".format(i))
+		center_coords['x'] = center_coords['x'] + 200 * unit_vector['x']
+		center_coords['y'] = center_coords['y'] + 200 * unit_vector['y']
+		center_coords['z'] = center_coords['z'] + 200 * unit_vector['z']
 
+		print(stars)
 	return stars
 
 
@@ -265,14 +262,14 @@ def find_closest(stars, start_coords, end_coords):
 	end_star = None
 
 	for star_name, star_coords in stars.items():
-		this_distance = distance_to_start(start_coords, star_coords, start_distance)
-		that_distance = distance_to_end(end_coords, star_coords, end_distance)
-		if this_distance < start_distance:
-			start_distance = this_distance
+		distance_to_start = distance_to_point(start_coords, star_coords)
+		distance_to_end = distance_to_point(end_coords, star_coords)
+		if distance_to_start < start_distance:
+			start_distance = distance_to_start
 			start_star = {star_name:star_coords}
 
-		if that_distance < end_distance:
-			end_distance = that_distance
+		if distance_to_end < end_distance:
+			end_distance = distance_to_end
 			end_star = {star_name:star_coords}
 
 	return start_star, end_star
@@ -343,23 +340,20 @@ def explore_path(all_nodes, stars, final_node):
 			this_distance += 1
 			# When stuck, give (once) a magick re-fuel. Do this just again, if a
 			# jump occured after the magick re-fuel.
-			# Yes, this node is a "leftover" from the stuff happening above.
-			# That doesn't matter, since this attribute is the same for all nodes.
 			# Due to many stars not having information about scoopability I had
-			# to set the default value of this attribute to True. This, I think
-			# that this if condition will never be triggered.
-			if this_distance == len(node.reachable) and not magick_fuel:
+			# to set the default value of this attribute to True. Thus, I think
+			# that this if-condition will never be triggered.
+			if this_distance == len(final_node.reachable) and not magick_fuel:
 				magick_fuel = True
 				this_distance = 0
 				print("BEFORE")
 				refuel_stuck_jumpers(all_nodes)
 				print("AFTER")
 
-			elif this_distance == len(node.reachable):
+			elif this_distance == len(final_node.reachable):
 				# If no way can be found even with the largest boost range, and
-				# even after ONE magick fuel event took place, break the loop ...
+				# even after ONE magick fuel event took place, break the loop.
 				break
-
 		else:
 			# I will run explore_path to find the best way. However, it seems to be
 			# that once the program is called, that .items() returns the items
@@ -377,67 +371,6 @@ def explore_path(all_nodes, stars, final_node):
 			# fuel events can take place. Yes, that means that a route may be just 
 			# possible if magickally fuelled all the way.
 			magick_fuel = False
-
-
-
-# In a different database more information can be found about the stars.
-# This database however, is much larger and thus I don't look into it, before
-# I have all the possible stars on a path, which are considerably less than
-# there are stars in the whole database.
-def more_information_into_dict(stars, this_data):
-	starname = this_data['systemName']
-
-	# First, the discoverer of the main star.
-	# 
-	# ATTENTION: The dict with the information of a celestial body has no 
-	# 'isMainStar' if it is not a star. However, this function should not be 
-	# called if it isn't a star.
-	if this_data['isMainStar']:
-		# The dict may either not have 'discovery' or 'commander' as key, or the
-		# value may be None, or the value may be "null", or the name contains
-		# non-ascii characters. All have to be caught and handled. And nope! I 
-		# will NOT struggle with stupid encoding errors. I've wasted enough 
-		# time with that.
-		try:
-			discoverer = this_data['discovery']['commander']
-		except (TypeError, KeyError) as error:
-			discoverer = None
-		# This should actually occur just when printing!
-		except UnicodeEncodeError:
-			discoverer = 'Someone with non-ascii characters in name. Check manually.'
-
-		stars[starname]['discoverer'] = discoverer
-
-	# Second, scoopability ... some comments:
-	# 1.: Information about scoopability of a star is mostly not available and 
-	# will be 1 by default. So I assume that most stars are scoopable. That is
-	# highly questionable, but otherwise the algorithm will not work.
-	# 2.: The main star of a system may not be scoopable but a sister star 
-	# may be. Thus I check all stars in a given system and if just one is 
-	# scoopable the whole node is considered scoopable.
-	if stars[starname]['scoopable'] != True:
-		stars[starname]['scoopable'] = this_data['isScoopable']
-
-
-
-# This function looks in the other database if it can find the systems and
-# gets additional information about it.
-def find_additional_information(stars, infile):
-	starnames = list(stars.keys())
-
-	i = 0
-	with open(infile, 'r', encoding='utf-8-sig') as f:
-		for line in f:
-			i += 1
-			# See comment in find_systems() why i do this.
-			if 'name' in line:
-				data = create_data_from_line(line)
-
-				if data['systemName'] in starnames and data['type'] == 'Star':
-					more_information_into_dict(stars, data)
-
-			if i % 1000000 == 0:
-				print("checked entry #{} ...".format(i))
 
 
 
@@ -487,31 +420,19 @@ def pretty_print(pristine_nodes, jumper):
 		distance = round(jumper.distances[i], 2)
 
 		node = pristine_nodes[starname]
-		discoverer = node.data['discoverer']
 		scoopable = node.data['scoopable']
 		x_ = node.data['x']
 		y_ = node.data['y']
 		z_ = node.data['z']
 
 		this = '{}\t{}\t{}\t'.format(starname.replace(' ', '_'), distance, jump_type)
-		try:
-			that = '{}\t{}\t'.format(scoopable, discoverer.replace(' ', '_'))
-		# NoneType has no attriute .replace()
-		except AttributeError:
-			that = '{}\t{}\t'.format(scoopable, discoverer)
-		siht = '{}\t{}\t{}'.format(x_, y_, z_)
-
-		try:
-			print(this + that + siht)
-		except UnicodeEncodeError:
-			foo = 'LOOK_UP_MANUALLY!_NON-ASCII_CHARACTERS_IN_NAME.'
-			that = '{}\t{}\t'.format(scoopable, foo)
-			print(this + that + siht)
+		that = '{}\t{}\t{}\t{}'.format(scoopable, x_, y_, z_)
+		print(this + that)
 
 
 
 # This function figures out if the jumper that reached the final node during 
-# the current loop uses less jumps or less boosts than the current best jumpers.
+# the current loop uses less jumps or less boosts than the current best jumper.
 # < data > is a tuple that contains information from the previous jumps
 def better_jumper(i, max_tries, jumper, data):
 	fewest_jumps_jumper = data[0]
@@ -532,9 +453,15 @@ def better_jumper(i, max_tries, jumper, data):
 																new_level_1_boosts)
 	print(this + that + siht)
 
-	if number_jumps < fewest_jumps:
+	if number_jumps < fewest_jumps and new_level_3_boosts <= level_3_boosts and \
+									new_level_2_boosts <= level_2_boosts and \
+									new_level_1_boosts <= level_1_boosts:
 		fewest_jumps = number_jumps
 		fewest_jumps_jumper = jumper
+
+		level_1_boosts = new_level_1_boosts
+		level_2_boosts = new_level_2_boosts
+		level_3_boosts = new_level_3_boosts
 
 	data = (fewest_jumps_jumper, fewest_jumps, level_3_boosts, level_2_boosts, \
 																	level_1_boosts)
@@ -601,3 +528,25 @@ def print_jumper_information(pristine_nodes, fewest_jumps_jumper):
 		input("Below is a list of ALL stars visited (press ENTER): ")
 		pretty_print(pristine_nodes, fewest_jumps_jumper)
 	print()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
