@@ -34,6 +34,13 @@ class Node(object):
 	# and elements with even indice (e.g. element 3 => index 2) need to be 
 	# jump length when running on fumes. _find_reachable_stars() depends on that!
 	def __init__(self, name, data, jump_distances, all_stars, all_nodes):
+		# This attribute is meant to be able to avoid jumps to non-scoopbable 
+		# stars when already on fumes. However, in EDSM not all stars have this
+		# information and I need to set self.scoopable to True to make the 
+		# algorithm work at all. Thus, this feature is implemented in 
+		# _check_free_stars() but is obviously rather useless.
+		# However, if that ever changes, use < data['scoopable'] > as value 
+		# to set this attribute.
 		self.scoopable = data['scoopable']
 		# I love pointers, because this will automatically fill up :).
 		self.all_nodes = all_nodes
@@ -43,8 +50,6 @@ class Node(object):
 		self.name = name
 		self.data = data
 		self.jump_distances = jump_distances
-		self.discoverer = data['discoverer']
-
 		# Each list is a list of the stars up to a certain distance.
 		self.reachable = [[], [], [], [], [], [], [], []]
 
