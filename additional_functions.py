@@ -1,5 +1,5 @@
-#    "additional_functions" (v1.0)
-#    Copyright 2018 Soren Heinze
+#    "additional_functions" (v1.1)
+#    Copyright 2019 Soren Heinze
 #    soerenheinze (at) gmx (dot) de
 #    5B1C 1897 560A EF50 F1EB 2579 2297 FAE4 D9B5 2A35
 #
@@ -16,7 +16,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# This file contains functions used in AA_gap_jumper.py which could not go 
+# This file contains functions used in gap_jumper.py which could not go 
 # into either the Node-class or the Jumper-class.
 
 import class_definitions as cd
@@ -26,6 +26,11 @@ from random import shuffle
 import json
 import requests
 
+# The following function will never be triggered since all stars are considered
+# as to be scoopbable by default (see comment in class Node to self.scoopable).
+# However, it is the solution to an interesting problem and if the above 
+# mentioned ever changes it may be of use.
+# 
 # Problem that may occur: No jumps take place because all possible jumps
 # go to unscoopble stars, the jumper has just one jump left and within
 # one regular jump distance no scoopable star is available. The latter 
@@ -33,23 +38,24 @@ import requests
 # BUT, it may be possible that a scoopable star exists two (or more) jumps 
 # away.
 # All these possibilities could not be implemented in the regular code.
-# Solution: Take the possibility of the later into account by giving the 
-# jumper fuel fo one additional jump so that it can cross the gap to the 
+# Solution: Take the possibility of the latter into account by giving the 
+# jumper fuel for one additional jump so that it can cross the gap to the 
 # next (unscoopable) star and hope that after that a star exists that can be 
 # used for refill.
-# 
-# I think that this function will actually never be called.
 def refuel_stuck_jumpers(all_nodes):
 	for starname, node in all_nodes.items():
 		jumper = node.jumper
 		# This shall be done just for jumpers with an almost empty tank.
-		# The main while loop has, at the point when this function is called,
-		# already checked for each jumper and all distances if it is possible 
-		# to jump to a star and obviously failed to find one for all jumpers.
+		# The main while loop in explore_path() has, at the point when this 
+		# function is called, already checked for each jumper and all 
+		# distances if it is possible to jump to a star and obviously failed 
+		# to find one for all jumpers. 
 		# If it is because of the case described above, giving these jumpers
 		# fuel for another jump should solve this problem and when calling 
 		# said main loop again it should find a star to jump to, if there is 
 		# one.
+		# < jumper >  should always exist, that is taken care of in 
+		# explore_path(). However, just in case I check for it.
 		if jumper and jumper.jumps_left == 1:
 			jumper.jumps_left = 2
 			jumper.magick_fuel_at.append(node.name)
@@ -60,7 +66,7 @@ def refuel_stuck_jumpers(all_nodes):
 
 
 
-# This finds the closest system to a given point. Used to find the 
+# This finds the closest system to a given point. Used e.g. to find the 
 # systems closest to the start- and end-coords.
 def distance_to_point(point_1_coords, point_2_coords):
 	x_0 = point_2_coords['x']
@@ -79,19 +85,22 @@ def distance_to_point(point_1_coords, point_2_coords):
 
 # Things that are needed to find a point on the line between the start- and 
 # the end-coords.
+# This function does a lot but it seemed to make no sense to split it up.
 def calculate_line_stuff(start_coords, end_coords):
 	x_ = end_coords['x'] - start_coords['x']
 	y_ = end_coords['y'] - start_coords['y']
 	z_ = end_coords['z'] - start_coords['z']
 
-	distance = sqrt(x_**2 + y_**2 + z_**2)
+	length = sqrt(x_**2 + y_**2 + z_**2)
 
 	# < unit_vector > for the line from start- to end-coords.
 	unit_vector = {}
-	unit_vector['x'] = x_ / distance
-	unit_vector['y'] = y_ / distance
-	unit_vector['z'] = z_ / distance
+	unit_vector['x'] = x_ / length
+	unit_vector['y'] = y_ / length
+	unit_vector['z'] = z_ / length
 
+	# I want to look for stars approx. 500 ly around the line between start-
+	# and end-coords. Thus I have to "extend" the line a bit.
 	start_of_line = {}
 	start_of_line['x'] = start_coords['x'] - 400 * unit_vector['x']
 	start_of_line['y'] = start_coords['y'] - 400 * unit_vector['y']
@@ -104,16 +113,14 @@ def calculate_line_stuff(start_coords, end_coords):
 
 	# I need two vectors perpendicular to the unit_vector (along the line) to 
 	# be able to get the center-coords of the cubes along the line (see
-	# comment in stars_in_cube).
+	# comment to stars_in_cube() what that means).
 	# I have just ONE vector, the unit_vector. Fortunately is the cross product 
 	# between two vectors perpendicular to both. Thus I need just the second
 	# vector. 
 	# Fortunately (again), in 3D I just need to switch two "components"
 	# add a minus to the second and set the third component to zero to get a 
 	# vector perpendicular to the original vector. 
-	# Example: 
-	# vector = 3x + 4y + 5z
-	# perpendicular = 4x - 3y + 0z
+	# Example: vector = 3x + 4y + 5z, perpendicular = 4x - 3y + 0z
 	# ATTENTION: Make sure that not both of the switched components are zero.
 	perpendicular_vector_1 = {}
 	if unit_vector['y'] != 0:
@@ -150,27 +157,25 @@ def calculate_line_stuff(start_coords, end_coords):
 	return unit_vector, perpendicular_vector_1, perpendicular_vector_2, start_of_line, end_of_line
 
 
-# EDSM API can get me all stars in a cube with a side length of 1000 ly.
-# Testing has shown that I need cubes with a side length of 500 ly to get 
+# The EDSM API can get me all stars in a cube with a side length of 200 ly.
+# Testing has shown that I need cubes with a side length of ca. 1000 ly to get 
 # good results in regions with a really low star density.
-# Thus I build such cubes (well almost cubes) by stacking smaller 5 x 5 x 5
-# cubes on each other. 
-# This is what happens here.
+# Thus I build such cubes (well almost cubes) by stacking smaller cubes on each 
+# other and get the stars in these smaller cubes. This is what happens here.
 # Afterwards I move one cube length along the line and do the same. Stars
-# that are "counted" again will be removed. But the latter two things are 
+# that are "found again" will be removed. But the latter two things are 
 # taking place in find_systems() and extract_information().
-def stars_in_cubes_perpendicular_to_line(center_coords, perpendicular_vector_1, \
+def stars_in_cubes_around_line(center_coords, perpendicular_vector_1, \
 															perpendicular_vector_2):
 	url = 'https://www.edsm.net/api-v1/cube-systems'
+	# I want a stack of 5 x 5 cubes.
 	counter_1 = -2
 	counter_2 = -2
 
 	all_stars = []
-	i = 0
 	while counter_1 < 3:
 		while counter_2 < 3:
-			print(i) 
-			i+= 1
+			# Just some vector addition.
 			x_ = center_coords['x'] + 200 * counter_1 * perpendicular_vector_1['x'] + \
 												200 * counter_2 * perpendicular_vector_2['x']
 			y_ = center_coords['y'] + 200 * counter_1 * perpendicular_vector_1['y'] + \
@@ -191,20 +196,50 @@ def stars_in_cubes_perpendicular_to_line(center_coords, perpendicular_vector_1, 
 	return all_stars
 
 
-# Of all the information returned by stars_in_cubes_perpendicular_to_line()
-# I need JUST the things processed in this function
+# The get() in stars_in_cubes_around_line() will just return information about
+# the main star of a system. However, it may be the case that the main star of 
+# a system is not scoopbable, but other stars in the same system are.
+# In this case this function is called in extract_information() to figure
+# exactly that out.
+def system_has_scoopable_star(starname):
+	url = 'https://www.edsm.net/api-system-v1/bodies'
+	payload = {'systemName':starname}
+
+	# < data > is a dict that has a key 'bodies' which contains as elements 
+	# dicts with the information about all celestial bodies in that system.
+	data = requests.get(url, params = payload).json()
+
+	for body in data['bodies']:
+		# Not all bodies have the attribute < isScoopable >.
+		try:
+			if body['isScoopable']:
+				# It is enough to find ONE star that is scoopable.
+				return True
+		except KeyError:
+			pass
+
+		return False
+
+
+
+# Of all the information returned by stars_in_cubes_around_line() I need JUST the 
+# things processed in this function.
 # < stars > is a dict which contains each systems information between start- 
 # and end-coords in the given corridor of stacked cubes as returned by 
-# stars_in_cubes_perpendicular_to_line().
+# stars_in_cubes_around_line().
 def extract_information(stars, this_section_stars):
 	for element in this_section_stars:
-		# An element in this_section_stars can be a list with one or
+		# An element in < this_section_stars > can be a list with one or
 		# more dicts or an empty dict.
 		if len(element) > 0:
 			for this_dict in element:
 				starname = this_dict['name']
 				coords = this_dict['coords']
+				# This can be True or False or None.
 				scoopable = this_dict['primaryStar']['isScoopable']
+
+				if not scoopable and system_has_scoopable_star(starname):
+					scoopable = True
 
 				stars[starname] = {}
 				stars[starname].update(coords)
@@ -213,13 +248,14 @@ def extract_information(stars, this_section_stars):
 	return stars
 
 
+
 # This does all of the above.
 # < start_coords > and < end_coords > are dicts with the (approximate) 
 # coordinates of the star at the start and the star at the end.
-def find_systems(start_coords, end_coords, infile):
+def find_systems(start_coords, end_coords):
 	# < unit_vector > is for the line from start- to end-coords.
-	unit_vector, perpendicular_vector_1, perpendicular_vector_2, start_of_line, \
-		  end_of_line = calculate_line_stuff(start_coords, end_coords)
+	unit_vector, perpendicular_vector_1, perpendicular_vector_2, \
+		start_of_line, end_of_line = calculate_line_stuff(start_coords, end_coords)
 
 	stars = {}
 	center_coords = start_of_line
@@ -237,16 +273,18 @@ def find_systems(start_coords, end_coords, infile):
 		that = "(distance = {} ly). This will take some time...".format(int(difference))
 		print(this + that)
 
-		this_section_stars = stars_in_cubes_perpendicular_to_line(center_coords, \
+		this_section_stars = stars_in_cubes_around_line(center_coords, \
 										perpendicular_vector_1, perpendicular_vector_2)
-		print(this_section_stars)
 		stars = extract_information(stars, this_section_stars)
 
+		# In general is the line NOT perpendicular to the cubes sides. 
+		# Hence, the following will lead to the overlap of some cubes. 
+		# Something I can live with, since missing stars due to non-overlap
+		# would be more seriuos.
 		center_coords['x'] = center_coords['x'] + 200 * unit_vector['x']
 		center_coords['y'] = center_coords['y'] + 200 * unit_vector['y']
 		center_coords['z'] = center_coords['z'] + 200 * unit_vector['z']
 
-		print(stars)
 	return stars
 
 
@@ -264,6 +302,7 @@ def find_closest(stars, start_coords, end_coords):
 	for star_name, star_coords in stars.items():
 		distance_to_start = distance_to_point(start_coords, star_coords)
 		distance_to_end = distance_to_point(end_coords, star_coords)
+
 		if distance_to_start < start_distance:
 			start_distance = distance_to_start
 			start_star = {star_name:star_coords}
@@ -276,10 +315,10 @@ def find_closest(stars, start_coords, end_coords):
 
 
 
-# This takes in all the star-data and creates node-object.
+# This takes in all the star-data and creates node-objects.
 def create_nodes(stars, jumpable_distances):
 	all_nodes = {}
-	i = 0 
+
 	for starname, data in stars.items():
 		node = cd.Node(starname, data, jumpable_distances, stars, all_nodes)
 		all_nodes[starname] = node
@@ -297,24 +336,8 @@ def create_jumper_at_start(start_star, all_nodes):
 	all_nodes[starname].visited = True
 
 
-# Problem: 
-# 1.: Assume no regular jumps are possible. Thus this_distance in explore_path()
-# will be set to 1 (or 2 etc.) for ALL stars.
-# 2.: From star A to star B a boosted jumps take place. Star B contains now
-# a jumper.
-# 3.: If star B has NOT been "called" in the while loop in explore_path() 
-# it will be "called" after star A had sent a jumper to it. However, 
-# this_distance is still NOT set back to zero. Thus, the jumper at star B 
-# jumps now ALSO a boosted jump to star C.
-# 
-# This leads to more boosted jumps than absolute necessary. An extreme case I 
-# had once were ver 5 grade three boosted jumps over 600 ly instead of one
-# grade three boosted jumps at the place where it was necessary and just regular 
-# jumps afterwards.
-# 
-# Solution: if this_distance != 0 allow jumps JUST from stars that have 
-# free stars in their vicinity.
-# This is what this function takes care of.
+# Just work with nodes that actually can send a jumper in the main while-loop
+# in explore_path(). This function finds these nodes.
 def get_nodes_that_can_send_jumpers(all_nodes, this_distance):
 	starnames = []
 	for starname, node in all_nodes.items():
@@ -329,86 +352,61 @@ def get_nodes_that_can_send_jumpers(all_nodes, this_distance):
 # This does all the above and finds a way from start to end (or not).
 def explore_path(all_nodes, stars, final_node):
 	# This is the index of the possible jump distances in the 
-	# jump_distances-attribute of the Node-class. The initial index must be 
-	# zero.
+	# jump_distances-attribute of the Node-class.
 	this_distance = 0
+	# See below why I have this. And yes, I know that it is actually "magic".
 	magick_fuel = False
 	while not final_node.visited:
 		starnames = get_nodes_that_can_send_jumpers(all_nodes, this_distance)
 
+		# If no jump can take place with the given jump-distance ...
 		if len(starnames) == 0:
+			# ... allow for boosted jumps.
 			this_distance += 1
-			# When stuck, give (once) a magick re-fuel. Do this just again, if a
-			# jump occured after the magick re-fuel.
+			# A jumper can get stuck in a system JUST because it has just one
+			# jump left in the tank and all reachable stars are unscoopable.
+			# 
+			# If this happens for all jumpers, give (once) a magick re-fuel. 
+			# Do this just again, if a jump occured after the magick re-fuel. 
+			# This is justified since EDSM does NOT have all stars. Thus it is 
+			# likely that a real player could find a nearby scoopable star 
+			# by just looking at the in-game galaxy map. Since I don't have 
+			# this additional information I try to implement it with magick_fuel.
+			# 
 			# Due to many stars not having information about scoopability I had
-			# to set the default value of this attribute to True. Thus, I think
+			# to set the scoopable attribute of each node to True. Thus, I think
 			# that this if-condition will never be triggered.
+			# I keep it in case the above written ever changes.
 			if this_distance == len(final_node.reachable) and not magick_fuel:
 				magick_fuel = True
 				this_distance = 0
-				print("BEFORE")
 				refuel_stuck_jumpers(all_nodes)
-				print("AFTER")
 
 			elif this_distance == len(final_node.reachable):
 				# If no way can be found even with the largest boost range, and
 				# even after ONE magick fuel event took place, break the loop.
 				break
 		else:
-			# I will run explore_path to find the best way. However, it seems to be
-			# that once the program is called, that .items() returns the items
-			# always in the same order. Thus explore_path() will return always
-			# the same path. This is avoided by shuffling.
+			# I will run explore_path() to find the best way several time. 
+			# However, it seems that once the program is called, that certain 
+			# dict-related methods (e.g. .items()) return the items always in 
+			# the same order during the momentary call if the program. 
+			# Thus explore_path() will return always the same path. 
+			# This is avoided by shuffling.
 			shuffle(starnames)
 
 			for starname in starnames:
 				node = all_nodes[starname]
 				node._send_jumpers(this_distance)
 
+			# If any jump took place, try first to do a regular jump afterwards.
 			this_distance = 0
 			# If a jump is possible after a magick fuel event, everything can
 			# be done as before. This includes that after the jump more magick 
-			# fuel events can take place. Yes, that means that a route may be just 
-			# possible if magickally fuelled all the way.
+			# fuel events can take place. Yes, in theory that means that a route 
+			# may be just possible if magickally fuelled all the way.
+			# I don't think that I have to worry about that. 
 			magick_fuel = False
-
-
-
-# This function takes the points of a route and tries to figure out if there 
-# are jumps that could have been avoided. E.g., instead of jumping 1 => 2 => 3
-# if a direct jump 1 => 3 would have been possible.
-# If yes, the unnecessary step will be deleted.
-# However, all of this is done just within regular jump distance.
-# 
-# ATTENTION: After some testing it turned out that the original algorithm is 
-# already really good. The difference between running this function or not was
-# never larger than 1 jump. Thus I decided not to use it.
-# However, I think that it may be useful to have in the future, thus I keep it.
-def find_more_direct_way(final_node, all_nodes):
-	visited = deepcopy(final_node.jumper.visited_systems)
-	jump_types = deepcopy(final_node.jumper.jump_types)
-
-	i = 0
-	length = len(visited)
-	while i < length - 1:
-		starname = visited[i]
-		node = all_nodes[starname]
-
-		# Since visited is an ordered list, can I just check if a star further 
-		# away but within regular jump range
-		j = i + 2
-		while j < length:
-			try_to_jump_to = visited[j]
-			if try_to_jump_to in node.reachable[0]:
-				del visited[j - 1]
-				del jump_types[j - 1]
-				length -= 1
-				j -= 1
-			j += 1
-		i += 1
-
-	final_node.jumper.visited_systems = visited
-	final_node.jumper.jump_types = jump_types
 
 
 
@@ -453,9 +451,23 @@ def better_jumper(i, max_tries, jumper, data):
 																new_level_1_boosts)
 	print(this + that + siht)
 
-	if number_jumps < fewest_jumps and new_level_3_boosts <= level_3_boosts and \
+	most_better = new_level_3_boosts < level_3_boosts
+	
+	medium_better = new_level_3_boosts <= level_3_boosts and \
+										new_level_2_boosts < level_2_boosts
+
+	least_better = new_level_3_boosts <= level_3_boosts and \
 									new_level_2_boosts <= level_2_boosts and \
-									new_level_1_boosts <= level_1_boosts:
+									new_level_1_boosts < level_1_boosts
+
+	# ;)
+	leastest_better = number_jumps < fewest_jumps and \
+							new_level_3_boosts <= level_3_boosts and \
+							new_level_2_boosts <= level_2_boosts and \
+							new_level_1_boosts <= level_1_boosts
+
+
+	if most_better or medium_better or least_better or leastest_better:
 		fewest_jumps = number_jumps
 		fewest_jumps_jumper = jumper
 
@@ -511,7 +523,7 @@ def find_path(max_tries, stars, start_star, end_star, pristine_nodes):
 	return fewest_jumps_jumper
 
 
-# To print the information about the pat in a good way.
+# To print the information about the path in a good way.
 def print_jumper_information(pristine_nodes, fewest_jumps_jumper):
 	if fewest_jumps_jumper:
 		print()
@@ -528,6 +540,43 @@ def print_jumper_information(pristine_nodes, fewest_jumps_jumper):
 		input("Below is a list of ALL stars visited (press ENTER): ")
 		pretty_print(pristine_nodes, fewest_jumps_jumper)
 	print()
+
+
+# This function takes the points of a route and tries to figure out if there 
+# are jumps that could have been avoided. E.g., instead of jumping 1 => 2 => 3
+# if a direct jump 1 => 3 would have been possible.
+# If yes, the unnecessary step will be deleted.
+# However, all of this is done just within regular jump distance.
+# 
+# ATTENTION: After some testing it turned out that the original algorithm is 
+# already really good. The difference between running this function or not was
+# never larger than 1 jump. Thus I decided not to use it.
+# However, I think that it may be useful to have in the future, thus I keep it.
+def find_more_direct_way(final_node, all_nodes):
+	visited = deepcopy(final_node.jumper.visited_systems)
+	jump_types = deepcopy(final_node.jumper.jump_types)
+
+	i = 0
+	length = len(visited)
+	while i < length - 1:
+		starname = visited[i]
+		node = all_nodes[starname]
+
+		# Since visited is an ordered list, can I just check if a star further 
+		# away but within regular jump range exists.
+		j = i + 2
+		while j < length:
+			try_to_jump_to = visited[j]
+			if try_to_jump_to in node.reachable[0]:
+				del visited[j - 1]
+				del jump_types[j - 1]
+				length -= 1
+				j -= 1
+			j += 1
+		i += 1
+
+	final_node.jumper.visited_systems = visited
+	final_node.jumper.jump_types = jump_types
 
 
 
