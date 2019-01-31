@@ -15,3 +15,7 @@ Just put your information (start- and end-coordinates and your jump-ranges) at t
 
 ## ATTENTION
 The search in the database is inefficient and will take some time. But the void is patient.
+
+The most up to date version does not require to download these databases any longer but uses the EDSM API to get the needed information. However, due to certain limitations does the program need to make quite a lot of requests and there seems to be a limit how many one can make.
+So, this feature is to be considered untested.
+I may provide at a later version the ability to either use the API or the downloaded database.
