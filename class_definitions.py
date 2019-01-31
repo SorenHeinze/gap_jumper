@@ -1,5 +1,5 @@
-#    "class_definitions" (v1.0)
-#    Copyright 2018 Soren Heinze
+#    "class_definitions" (v1.1)
+#    Copyright 2019 Soren Heinze
 #    soerenheinze (at) gmx (dot) de
 #    5B1C 1897 560A EF50 F1EB 2579 2297 FAE4 D9B5 2A35
 #
@@ -17,7 +17,7 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # This file contains the class definitions of the Node- and Jumper-classes
-# used in AA_gap_jumper.py 
+# used in gap_jumper.py 
 
 from math import sqrt
 from copy import deepcopy
@@ -28,12 +28,13 @@ class Node(object):
 	# < all_stars > is the dict that contains ALL stars-information, but it is 
 	# NOT the dict that contains all nodes! Because in the beginning I have just
 	# the information about the stars, but not yet the nodes.
-	# < data > is a dict that contains the coordinates as 'x', 'y', 'z', if
-	# it is scoopable and who discovered it.
+	# < data > is a dict that contains the coordinates as 'x', 'y', 'z' and if
+	# a star is scoopable.
 	# ATTENTION: < jump_distances > must have 0 (zero) as the very first value 
 	# and elements with even indice (e.g. element 3 => index 2) need to be 
 	# jump length when running on fumes. _find_reachable_stars() depends on that!
 	def __init__(self, name, data, jump_distances, all_stars, all_nodes):
+		self.name = name
 		# This attribute is meant to be able to avoid jumps to non-scoopbable 
 		# stars when already on fumes. However, in EDSM not all stars have this
 		# information and I need to set self.scoopable to True to make the 
@@ -41,22 +42,40 @@ class Node(object):
 		# _check_free_stars() but is obviously rather useless.
 		# However, if that ever changes, use < data['scoopable'] > as value 
 		# to set this attribute.
-		self.scoopable = data['scoopable']
+		self.scoopable = True
 		# I love pointers, because this will automatically fill up :).
 		self.all_nodes = all_nodes
-		self.visited = False
-		self.can_jump_to = []
-		self.jumper = None
-		self.name = name
-		self.data = data
+		# The algorithm works by sending "jumpers" from one star to the next.
+		# If one star can be reached from another is defined by < jump_distances >
 		self.jump_distances = jump_distances
-		# Each list is a list of the stars up to a certain distance.
+		# The jumper mentioned above. It will become later a class Jumper object.
+		self.jumper = None
+		# If a system was visited by a jumper it shall not be visited again.
+		# Actually this attribute is redundant, since if a system contains a 
+		# jumper it is automatically visited. So the latter could be used instead.
+		# However, I figured that out when everything was finished and thus
+		# kept < visited > to not break anything.
+		self.visited = False
+		# This will be filled when _check_free_stars() is called. It will contain
+		# the names of the systems which have not yet been visited and which are
+		# within a give jump range.
+		self.can_jump_to = []
+		# I want to keep the original dict for this star, just in case.
+		# It also contains the x, y and z coordinates of the system.
+		self.data = data
+
+		# I figure once out which other stars can be reached with a given jump
+		# range from the given system. So each list is a list of the stars up 
+		# to a certain distance.
 		self.reachable = [[], [], [], [], [], [], [], []]
 
 		self._find_reachable_stars(all_stars)
 
 
 	# This calculates the distance to another star.
+	# This is basically the same what is done in additional_functions.py => 
+	# distance_to_point(). However, I wanted this also to be a method of this 
+	# class.
 	def _this_distance(self, second_star_data):
 		x_square = (self.data['x'] - second_star_data['x'])**2
 		y_square = (self.data['y'] - second_star_data['y'])**2
@@ -78,23 +97,29 @@ class Node(object):
 			for i in range(len(self.jump_distances) - 1):
 				# ... the element with index (i + 1) in self.jump_distances 
 				# corresponds to ...
-				if self.jump_distances[i] < distance and \
+				if self.jump_distances[i] <= distance and \
 								distance < self.jump_distances[i + 1]:
 					# ... element i in self.reachable.
 					self.reachable[i].append(name)
 
 
-	# < this_distance > is the index of the list in self.reachable
+	# This method checks if the nearby stystems are free to jump to.
+	# < this_distance > is the index of the list in self.reachable. Do NOT 
+	# confuse with the method _this_distance()!
 	def _check_free_stars(self, this_distance):
 		self.can_jump_to = []
-		self.emergence_scoop = None
 		for name in self.reachable[this_distance]:
 			next_star = self.all_nodes[name]
 			if not next_star.visited:
-				# Don't jump if your tank is empty afterwards and the star is 
-				# unscoopable. But ...
+				# The following will never be triggered as of now, since the 
+				# .scoopable attribute is set be default to True. However, this 
+				# if-condition is meant to NOT allow a jump if the tank is empty 
+				# afterwards and the next star is unscoopable. 
+				# If this information ever will be available for all systems in 
+				# the EDSM database, it is automatically available (see also 
+				# comment above to self.scoopable).
 				if self.jumper.jumps_left == 1 and not next_star.scoopable:
-					# ... check if a star is nearby to re-fill the tank.
+					# Check if a star is nearby to re-fill the tank.
 					if self._refill_at_nearest_scoopable(name):
 						self.jumper.jumps_left = self.jumper.max_jumps - 1
 						self.can_jump_to.append(name)
@@ -121,6 +146,9 @@ class Node(object):
 	# minimum number of jumps with full tank must be three.
 	# ATTENTION: Just stars in regular jump distance will be considered for 
 	# refill!
+	# For the time being, the if-condition in _check_free_stars() which calls
+	# this function will never be triggered, will this function also never be
+	# used (see also comment in _check_free_stars()).
 	def _refill_at_nearest_scoopable(self, point_of_origin):
 		for name in self.reachable[0]:
 			next_star = self.all_nodes[name]
@@ -139,20 +167,25 @@ class Node(object):
 
 	# This is basically the method called on each node-instance if the 
 	# node houses a jumper.
+	# this is the heart of the algorithm to explore the network of stars to 
+	# find a route.
 	def _send_jumpers(self, this_distance):
 		# The .can_jump_to attribute is set when ._check_free_stars() is 
-		# called in af.get_nodes_that_can_send_jumpers() which is calles
-		# at the start of the while-loop in explore_path()
+		# called in additional_functions.py => get_nodes_that_can_send_jumpers() 
+		# which is called at the start of the while-loop in explore_path() in
+		# additional_functions.py.
 		for name in self.can_jump_to:
 			new_jumper = deepcopy(self.jumper)
 			new_jumper.visited_systems.append(name)
 			new_jumper._add_jump_types(this_distance)
 
-			next_star_data = self.all_nodes[name].data
+			next_star = self.all_nodes[name]
+			next_star_data = next_star.data
 			distance = self._this_distance(next_star_data)
 			new_jumper.distances.append(distance)
 
-			next_star = self.all_nodes[name]
+			# Another condition that is of little use as long the information
+			# about scoopability is not available for all systems in EDSM.
 			if next_star.scoopable:
 				new_jumper.jumps_left = deepcopy(new_jumper.max_jumps)
 			else:
@@ -169,23 +202,38 @@ class Node(object):
 
 
 # This is instantiated once and set at the starting node. If a node can send
-# out jumpers, it deepcopies the jumper at this node and sets the new jumper
-# to the nodes to be visited. This wil be the jump itself. Certain attributes 
-# of the new jumper will be changed to accomodate for the fact that a jump
-# took place.
+# out jumpers, it deepcopies its jumper and sets the new jumper to the nodes to 
+# be visited. This wil be the jump itself. Certain attributes of the new jumper 
+# will be changed to accomodate for the fact that a jump took place.
 class Jumper(object):
 	def __init__(self, visited_systems, max_jumps):
+		# The list with all the systems visited by this jumper. This is what
+		# all the shebang is for.
 		self.visited_systems = [visited_systems]
+		# Number of jumps without re-fueling.
 		self.max_jumps = max_jumps
+		# This is the number of jumps "left in the tank" after a jump took place.
 		self.jumps_left = deepcopy(self.max_jumps)
+		# Additional information. Was interesting during testing, but will 
+		# not be delivered to the user (but it is easily available).
 		self.on_fumes = []
+		# Dito.
 		self.scoop_stops = []
+		# Dito.
 		self.notes = []
+		# Dito. See comment in additional_functions.py => explore_path() what
+		# this is about. And yes, i know that magick is written wrong.
 		self.magick_fuel_at = []
+		# Dito.
 		self.on_fumes = []
-		# This list will contain what kind of jump was done, e.g., "lvl 1 boost".
+		# This list will contain what kind of jump was done, e.g., 'B1F' for a
+		# "grade 1 boosted jump on fumes". THIS information will be delivered 
+		# to the user.
 		self.jump_types = ['start']
+		# The distanced between the systems visited. This information will also 
+		# be delivered to the user.
 		self.distances = [0]
+
 
 	# I want the type of jump to be written in a certain way. Hence, this 
 	# function.
@@ -194,7 +242,8 @@ class Jumper(object):
 		# The right hand expression evaluates to True or False, and yes, that 
 		# can be done this way.
 		# < + 1 > because this_distance starts counting at zero, and every
-		# second distance type is on fumes.
+		# second distance type is on fumes (every number in 
+		# class Node => .jump_distances with an even index).
 		on_fumes = (this_distance + 1) % 2 == 0
 
 		jump_types = 'B{}'.format(boost_type)
