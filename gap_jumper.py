@@ -1,5 +1,5 @@
-#    "gap_jumper" (v1.0)
-#    Copyright 2018 Soren Heinze
+#    "gap_jumper" (v1.1)
+#    Copyright 2019 Soren Heinze
 #    soerenheinze (at) gmx (dot) de
 #    5B1C 1897 560A EF50 F1EB 2579 2297 FAE4 D9B5 2A35
 #
@@ -16,20 +16,19 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# This program is meant to be used to find a possible path in regions with 
-# extremely low star density. It takes the EDSM star-database and finds a way 
-# from a given start- to a given end-point. If the spaceship can do it at all, 
-# that is.
+# This program is meant to be used to find a possible path in Elite Dangerous in 
+# regions with extremely low star density. It takes the EDSM star-database and 
+# finds a way from a given start- to a given end-point. If the spaceship can do 
+# it at all, that is.
 # 
 # The route is NOT necessarily the shortest way, because highest priority was 
 # set to save as much materials as possible by using boosted jumps just if no 
 # other way can be found.
 # 
-# ATTENTION: Finding the information can take some time. Ca. one hour on my 
-# 2012 laptop.
+# ATTENTION: Getting the initial information about available stars takes some time. 
 # ATTENTION: You may imagine that it is probably not a good idea to run this
-# program in regions with high (or even regular) star density. But who am 
-# I to restrict your possibilities? 
+# program in regions with high (or even regular) star density. But who am I to 
+# restrict your possibilities? 
 
 import class_definitions as cd
 import additional_functions as af
@@ -44,34 +43,26 @@ import pickle
 
 # start- and end-coordinates from in-game starmap
 # Below you can see an example
-start_coords = {'x': 16602.0, 'y': -0.0, 'z': -10460.0}
-end_coords = {'x': 14550.0, 'y': -0.0, 'z': -7550.0}
+start_coords = {'x': 15015.0, 'y': -22.0, 'z': -7701.0}
+end_coords = {'x': 17021.0, 'y': -15.0, 'z': -9677.0}
 
 # The distances the spaceship can jump.
 # 
 # ATTENTION: The very first value MUST be zero!
-# ATTENTION: every second value is the jump distances on fumes, for the given 
-# boost level.
-# So it needs to look like this:
+# ATTENTION: every valuewith an indice divisible by two is the jump distances 
+# on fumes, for the given boost level. So it needs to look like this 
+# (boost_0 is a regular jump):
 # [0, boost_0_jump, boost_0_jump_on_fumes, boost_1_jump, boost_1_jump_on_fumes ... ]
-# Below you can see an example for an Anaconda.
-jumpable_distances = [0, 71.33, 73.73, 89.16, 92.16, 107.0, 110.59, 142.66, 147.45]
+# Below you can see an example.
+jumpable_distances = [0, 53.95, 58.22, 67.43, 72.77, 80.92, 87.33, 107.90, 116.44]
 
 # Number of tries to find the best path.
 # Use 1000 to be really sure, but sth. like 23 should give you results which 
 # are not too far away from the most economic or fewest jumps route.
 max_tries = 23
 
-# The path with the star database-files.
+# The path where the found systems shall be stored.
 path = ''
-
-# File with the star coordinates.
-# The data can be downloaded here: https://www.edsm.net/en/nightly-dumps
-coordinates_file ='systemsWithCoordinates.json'
-
-# File with additional information about celestial bodies.
-# The data can be downloaded here: https://www.edsm.net/en/nightly-dumps
-additional_information_file = 'bodies.json'
 
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
@@ -80,10 +71,23 @@ additional_information_file = 'bodies.json'
 ## ## ## ##  first time.                        ## ## ##
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
-#filename = path + 'one_way_more_information'
+# After the program was executed once, the database with all found stars 
+# for a given route and the corresponding notes are stored.
+# This is meant for the case that one and the same route shall be run
+# once more, without collecting all the data again, since the latter is
+# the bottle neck.
+# 
+# If the same stars shall be used but another ship with different
+# < jumpable_distances >.
+# 1.:  uncomment the first thing to load JUST the stars for this route. 
+# 2.: Below, comment out all in connection with af.find_systems().
+# 3.: Create the node informtion again with the new ship information by 
+# NOT having a comment around all in connection with af.create_nodes()
+# 4.: The rest of the program is the same.
+
+#filename = path + 'stars'
 #with open(filename, 'rb') as f:
 	#stars = pickle.load(f)
-
 
 #filename = path + 'all_nodes'
 #with open(filename, 'rb') as f:
@@ -103,18 +107,9 @@ additional_information_file = 'bodies.json'
 ## ## ## ##  the first time.                    ## ## ##
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
-infile = path + coordinates_file
-stars = af.find_systems(start_coords, end_coords, infile)
+stars = af.find_systems(start_coords, end_coords)
 
-filename = path + 'one_way'
-with open(filename, 'wb') as f:
-	pickle.dump(stars, f)
-
-
-infile = path + additional_information_file
-af.find_additional_information(stars, infile)
-
-filename = path + 'one_way_more_information'
+filename = path + 'stars'
 with open(filename, 'wb') as f:
 	pickle.dump(stars, f)
 
@@ -144,6 +139,7 @@ print("  End at: ", end_star)
 print("\nNumber of stars considered: ", len(stars))
 
 af.print_jumper_information(pristine_nodes, fewest_jumps_jumper)
+
 
 
 
