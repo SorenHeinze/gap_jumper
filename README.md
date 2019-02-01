@@ -9,13 +9,12 @@ Well, most likely you are treading on the path's of the ancients. Use their know
 They have nigthly dumps of their database which contains information of all the star systems the community has discovered so far.
 
 ## What you'll get
-This python 3 program uses two of these databases (which one is described in the source-code) to find stars to jump to between the system you are in (or near) right now and the system you want to jump to.
+This python 3 program uses these databases (which one is described in the source-code) to find stars to jump to between the system you are in (or near) right now and the system you want to jump to.
 The program is NOT designed to find the shortest path, but the most economic path, needing the fewest boosted jumps possible.
-Just put your information (start- and end-coordinates and your jump-ranges) at the beginning of the < gap_jumper.py > file and then call the same on the command-line.
+Just put the necessary information (start- and end-coordinates, your jump-ranges and a bit more) at the beginning of the < gap_jumper.py > file and then call the same on the command-line.
 
 ## ATTENTION
 The search in the database is inefficient and will take some time. But the void is patient.
 
-The most up to date version does not require to download these databases any longer but uses the EDSM API to get the needed information. However, due to certain limitations does the program need to make quite a lot of requests and there seems to be a limit how many one can make.
-So, this feature is to be considered untested.
-I may provide at a later version the ability to either use the API or the downloaded database.
+Also, please read the comments especially in < gap_jumper.py > for additional information on how to use this program.
+I may or may not provide a gui at a later time.
