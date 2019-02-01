@@ -32,6 +32,9 @@
 
 import class_definitions as cd
 import additional_functions as af
+import find_systems_offline as off
+import find_systems_online as on
+import find_route as fr
 import pickle
 
 
@@ -61,7 +64,17 @@ jumpable_distances = [0, 53.95, 58.22, 67.43, 72.77, 80.92, 87.33, 107.90, 116.4
 # are not too far away from the most economic or fewest jumps route.
 max_tries = 23
 
-# The path where the found systems shall be stored.
+# Set this to < True > if you have downloaded the systemsWithCoordinates.json
+# nigthly dump from EDSM.
+# The data can be downloaded here: https://www.edsm.net/en/nightly-dumps
+# The offline process will find more stars than the online algorithm (due to 
+# limitations getting the data via the EDSM API). Thus it may find more 
+# efficient routes. But it requires of course to download a rather large file.
+search_offline = False
+coordinates_file ='systemsWithCoordinates.json'
+
+# The path where the systemsWithCoordinates.json can be found. In this folder 
+# the found systems file will be stored, too.
 path = ''
 
 
@@ -107,9 +120,13 @@ path = ''
 ## ## ## ##  the first time.                    ## ## ##
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
-stars = af.find_systems(start_coords, end_coords)
+if not search_offline:
+	stars = on.find_systems_online(start_coords, end_coords)
+else:
+	infile = path + coordinates_file
+	stars = off.find_systems_offline(start_coords, end_coords, infile)
 
-filename = path + 'stars'
+filename = path + 'stars_on'
 with open(filename, 'wb') as f:
 	pickle.dump(stars, f)
 
@@ -130,7 +147,7 @@ with open(filename, 'wb') as f:
 
 start_star, end_star = af.find_closest(stars, start_coords, end_coords)
 
-fewest_jumps_jumper = af.find_path(max_tries, stars, start_star, end_star, \
+fewest_jumps_jumper = fr.find_path(max_tries, stars, start_star, end_star, \
 																pristine_nodes)
 
 print()
