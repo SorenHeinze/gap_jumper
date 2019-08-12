@@ -63,6 +63,13 @@ class Node(object):
 		# I want to keep the original dict for this star, just in case.
 		# It also contains the x, y and z coordinates of the system.
 		self.data = data
+		# See comment to in_box() why i have these.
+		self.x_upper = self.data['x'] + abs(self.jump_distances[-1])
+		self.x_lower = self.data['x'] - abs(self.jump_distances[-1])
+		self.y_upper = self.data['y'] + abs(self.jump_distances[-1])
+		self.y_lower = self.data['y'] - abs(self.jump_distances[-1])
+		self.z_upper = self.data['z'] + abs(self.jump_distances[-1])
+		self.z_lower = self.data['z'] - abs(self.jump_distances[-1])
 
 		# I figure once out which other stars can be reached with a given jump
 		# range from the given system. So each list is a list of the stars up 
@@ -84,11 +91,38 @@ class Node(object):
 		return sqrt(x_square + y_square + z_square)
 
 
+	# Creating these nodes takes A LOT of time if many nodes are to be created.
+	# It seems that calculating the distances to all other stars requires most 
+	# of this time. Hence, I decided that the distances shall just be 
+	# calculated if a star actually can be reached. The latter means that it
+	# is "in a box", with side length's equal to the maximum jump range, 
+	# around this node. This function checks for that.
+	# This decreased the time needed by a factor of twenty (!).
+	def in_box(self, second_star_data):
+		first = self.x_lower < second_star_data['x'] < self.x_upper
+		second = self.y_lower < second_star_data['y'] < self.y_upper
+		third = self.z_lower < second_star_data['z'] < self.z_upper
+
+		if first and second and third:
+			return True
+		else:
+			return False
+
+
 	# This function finds all stars within the range(s) of the starship in use.
 	# < jump_distances > is a list with all the possible jump distances and 
 	# zero as the first element. See also comment to __init__().
 	def _find_reachable_stars(self, all_stars):
 		for name, data in all_stars.items():
+			# Don't do all the calculations if the star couldn't be 
+			# reached anyway.
+			# ATTENTION: Since the sphere around this node is smaller than the 
+			# square box the below calculations still need to take care of 
+			# case that a star is in the box but outside maximum jumping 
+			# distance. This is implemented below.
+			if not self.in_box(data):
+				continue
+
 			distance = self._this_distance(data)
 
 			# ATTENTION: self.jump_distances contains zero as the first 

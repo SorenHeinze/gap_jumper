@@ -21,6 +21,7 @@
 
 import class_definitions as cd
 from math import sqrt
+from time import time
 
 
 # This finds the closest system to a given point. Used e.g. to find the 
@@ -68,11 +69,19 @@ def find_closest(stars, start_coords, end_coords):
 
 # This takes in all the star-data and creates node-objects.
 def create_nodes(stars, jumpable_distances):
+	total = 0
 	all_nodes = {}
 
+	start = time()
 	for starname, data in stars.items():
+		total += 1
 		node = cd.Node(starname, data, jumpable_distances, stars, all_nodes)
 		all_nodes[starname] = node
+
+		if (total + 1) % 100 == 0:
+			time_so_far = time() - start
+			time_left = len(stars) / total * time_so_far - time_so_far
+			print("processed", total + 1, "of", len(stars), "=>", time_left, 'seconds left')
 
 	return all_nodes
 
