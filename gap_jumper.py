@@ -47,8 +47,8 @@ import argparse
 # start- and end-coordinates from in-game starmap
 # Below you can see an example
 
-start_coords = {'x': 15015.0, 'y': -22.0, 'z': -7701.0}
-end_coords = {'x': 17021.0, 'y': -15.0, 'z': -9677.0}
+# start_coords = {'x': 15015.0, 'y': -22.0, 'z': -7701.0}
+# end_coords = {'x': 17021.0, 'y': -15.0, 'z': -9677.0}
 
 # The distances the spaceship can jump.
 # 
@@ -58,12 +58,13 @@ end_coords = {'x': 17021.0, 'y': -15.0, 'z': -9677.0}
 # (boost_0 is a regular jump):
 # [0, boost_0_jump, boost_0_jump_on_fumes, boost_1_jump, boost_1_jump_on_fumes ... ]
 # Below you can see an example.
-jumpable_distances = [0, 53.95, 58.22, 67.43, 72.77, 80.92, 87.33, 107.90, 116.44]
+
+# jumpable_distances = [0, 53.95, 58.22, 67.43, 72.77, 80.92, 87.33, 107.90, 116.44]
 
 # Number of tries to find the best path.
 # Use 1000 to be really sure, but sth. like 23 should give you results which 
 # are not too far away from the most economic or fewest jumps route.
-max_tries = 23
+#max_tries = 23
 
 # Set this to < True > if you have downloaded the systemsWithCoordinates.json
 # nigthly dump from EDSM.
@@ -71,8 +72,8 @@ max_tries = 23
 # The offline process will find more stars than the online algorithm (due to 
 # limitations getting the data via the EDSM API). Thus it may find more 
 # efficient routes. But it requires of course to download a rather large file.
-search_offline = False
-coordinates_file ='systemsWithCoordinates.json'
+#search_offline = False
+#coordinates_file ='systemsWithCoordinates.json'
 
 # The path where the systemsWithCoordinates.json can be found. In this folder 
 # the found systems file will be stored, too.
@@ -90,17 +91,29 @@ if __name__ == "__main__":
         the --starsfile option if you have downloaded the systemsWithCoordinates.json
         nigthly dump from EDSM.""",
         epilog="See README.md for further information.")
-    parser.add_argument('--cached','-c', action='store_true', help="Reuse nodes data from previous run")
-    parser.add_argument('--starsfile','-s',action='store', metavar='FILE',
-                        help="Path to EDSM system coordinates JSON file")
-    parser.add_argument('--range','-r', action='store', metavar='LY', required=True, type=float, 
+    parser.add_argument('--range','-r', metavar='LY', required=True, type=float, 
                         help="Ship range with a full fuel tank (required)")
-    parser.add_argument('--range-on-fumes','-rf', action='store', metavar='LY', type=float)
+    parser.add_argument('--range-on-fumes','-rf', metavar='LY', type=float,
+                        help="Ship range with fuel for one jump (defaults equal to range)")
+    parser.add_argument('--startcoords','-s', nargs=3, metavar=('X','Y','Z'), type=float, required=True,
+                        help="Galactic coordinates to start routing from")
+    parser.add_argument('--destcoords','-d',  nargs=3, metavar=('X','Y','Z'), type=float, required=True,
+                        help="Galactic coordinates of target destination")
+    parser.add_argument('--cached', action='store_true', help="Reuse nodes data from previous run")
+    parser.add_argument('--starsfile', metavar='FILE',
+                        help="Path to EDSM system coordinates JSON file")
+    parser.add_argument('--max-tries','-N', metavar='N', type=int, default=23,
+                        help="How many times to shuffle and reroute before returning best result (default 23)")
     args = parser.parse_args()
     
     if not args.range_on_fumes:
         args.range_on_fumes = args.range+0.01
     jumpable_distances = [0] + [x*y for x in [1, 1.25, 1.5, 2.0] for y in [args.range, args.range_on_fumes]]
+    
+    start_coords = dict(zip( ['x','y','z'], args.startcoords ))
+    end_coords   = dict(zip( ['x','y','z'], args.destcoords ))
+    
+    max_tries = args.max_tries
 
 # After the program was executed once, the database with all found stars 
 # for a given route and the corresponding notes are stored.
@@ -122,9 +135,9 @@ if __name__ == "__main__":
         with open(filename, 'rb') as f:
             stars = pickle.load(f)
 
-        filename = path + 'all_nodes'
-        with open(filename, 'rb') as f:
-            pristine_nodes = pickle.load(f)
+#         filename = path + 'all_nodes'
+#         with open(filename, 'rb') as f:
+#             pristine_nodes = pickle.load(f)
 
 ## Code path: load stars from API or JSON
     else:
@@ -138,12 +151,13 @@ if __name__ == "__main__":
         with open(filename, 'wb') as f:
             pickle.dump(stars, f)
 
+## Always regenerate nodes, in case jump range changed
+## Still pickle nodes to disk, but only for debugging purposes
+    pristine_nodes = af.create_nodes(stars, jumpable_distances)
 
-        pristine_nodes = af.create_nodes(stars, jumpable_distances)
-
-        filename = path + 'all_nodes'
-        with open(filename, 'wb') as f:
-            pickle.dump(pristine_nodes, f)
+    filename = path + 'all_nodes'
+    with open(filename, 'wb') as f:
+        pickle.dump(pristine_nodes, f)
 
 
 
