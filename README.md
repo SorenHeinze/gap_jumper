@@ -69,6 +69,8 @@ During each run, the data for the set of stars considered is cached in the local
 # ATTENTION
 The search in the database is inefficient and will take some time. But the void is patient.
 
-Please note that for long routes (about 1000 LY or more) the default mode will exceed EDSM's rate limits and fail to fetch all the required stars. A future version will throttle and retry the queries so that the data is eventually retrieved. 
+Note that EDSM enforces rate limits. When fetching stars in the default online mode, this program sends API queries as fast as possible without exceeding the limits. This works out to fetching about 360 requests unthrottled, and one request per ten seconds after that. In terms of the algorithm implemented here, routes of up to about 2000 LY will be fetched unthrottled. Beyond 2000 LY, the throttling means each additional 200 LY will add about 5 minutes.
+
+For comparison, the ~5 GB `systemsWithCoordinates.json` file can be downloaded over a fast link in around 2 hours. Thus if you need to plot more than 6-7000 LY, you may be better off downloading the full dataset. However, for such long routes, until the algorithm is further optimized, the time spent computing the route may exceed the download time anyway.
 
 Discussion of this program, and further description of the motivations and approach, can be found in the Frontier Forum thread: [The ancient automated pathfinder-stations](https://forums.frontier.co.uk/threads/the-ancient-automated-pathfinder-stations.475668/). Additional information can be found in the source code comments, especially in 
