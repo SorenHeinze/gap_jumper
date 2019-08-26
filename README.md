@@ -17,7 +17,7 @@ Just put the necessary information (start- and end-coordinates, your jump-ranges
 
 ```
 $ python gap_jumper.py -h
-usage: gap_jumper.py [-h] --range LY [--range-on-fumes LY]
+usage: gap_jumper.py [-h] [-v] --range LY [--range-on-fumes LY]
                      --startcoords X Y Z --destcoords X Y Z
                      [--cached] [--starsfile FILE] [--max-tries N]
 
@@ -41,6 +41,7 @@ optional arguments:
   --starsfile FILE      Path to EDSM system coordinates JSON file
   --max-tries N, -N N   How many times to shuffle and reroute before
                         returning best result (default 23)
+  --verbose, -v         Enable verbose logging
 ```
 
 ## Examples
