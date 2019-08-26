@@ -84,6 +84,7 @@ path = ''
 if __name__ == "__main__":
 
 	logs = logging.getLogger('gapjumper')
+	logging.basicConfig()
 	parser = argparse.ArgumentParser(
 		description="""You want to directly cross from one spiral arm of the
 		galaxy to another but there is this giant gap between them?
@@ -111,6 +112,7 @@ if __name__ == "__main__":
 
 	if args.verbose:
 		logs.setLevel(logging.INFO)
+		logs.info("Verbose logging enabled")
 	if not args.range_on_fumes:
 		args.range_on_fumes = args.range+0.01
 	jumpable_distances = [0] + [x*y for x in [1, 1.25, 1.5, 2.0] for y in [args.range, args.range_on_fumes]]

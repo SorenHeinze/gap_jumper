@@ -131,17 +131,24 @@ def stars_in_cubes_around_line(center_coords,
 												200 * counter_2 * perpendicular_vector_2['z']
 
 			payload = {'x':x_, 'y':y_, 'z':z_, 'size':200, 'showCoordinates':1, 'showPrimaryStar':1}
-			logs.info(url, payload)
+			logs.info("GET edsm/cube with %s", payload)
 			systems = requests.get(url, params = payload)
 			if systems.status_code != requests.codes.ok:
-				logs.error("HTTP ERROR ", systems.status_code, url, payload)
+				logs.error("HTTP ERROR %d for %s with %s", systems.status_code, url, payload)
 				break
 			all_stars.append(systems.json())
 
-			## Quick and dirty rate-limiting
-			if systems.headers['x-rate-limit-remaining'] == 0 and systems.headers['x-rate-limit-reset'] > 0:
-				logs.warning("Rate limit hit, sleeping for %d seconds", systems.headers['x-rate-limit-reset'])
-				time.sleep(systems.headers['x-rate-limit-reset'])
+			## Rate limit throttling logic
+			_rl_lim = int(systems.headers['x-rate-limit-limit'])
+			_rl_remain = int(systems.headers['x-rate-limit-remaining'])
+			_rl_reset = int(systems.headers['x-rate-limit-reset'])
+			logs.info("Rate limit:%d %d %d",_rl_lim,_rl_remain,_rl_reset)
+			if _rl_remain == 0 and _rl_reset > 0:
+				logs.warning("Rate limit exceeded, sleeping %s seconds", _rl_reset)
+				time.sleep(_rl_reset)
+			if _rl_remain < 5 and _rl_reset > 0:
+				logs.info("Rate limit pause, 10 seconds")
+				time.sleep(10)
 
 			counter_2 += 1
 
