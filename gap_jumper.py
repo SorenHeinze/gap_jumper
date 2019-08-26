@@ -37,6 +37,7 @@ import find_systems_online as on
 import find_route as fr
 import pickle
 import argparse
+import logging
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 ## ## ## ## ##                            ## ## ## ## ##
@@ -82,38 +83,42 @@ path = ''
 ## Beginning of program execution when run from the command line
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(
-        description="""You want to directly cross from one spiral arm of the
-        galaxy to another but there is this giant gap between them?
-        This program helps you to find a way.
-        
-        Default behavior is to use the EDSM API to load stars on-demand. Use
-        the --starsfile option if you have downloaded the systemsWithCoordinates.json
-        nigthly dump from EDSM.""",
-        epilog="See README.md for further information.")
-    parser.add_argument('--range','-r', metavar='LY', required=True, type=float, 
-                        help="Ship range with a full fuel tank (required)")
-    parser.add_argument('--range-on-fumes','-rf', metavar='LY', type=float,
-                        help="Ship range with fuel for one jump (defaults equal to range)")
-    parser.add_argument('--startcoords','-s', nargs=3, metavar=('X','Y','Z'), type=float, required=True,
-                        help="Galactic coordinates to start routing from")
-    parser.add_argument('--destcoords','-d',  nargs=3, metavar=('X','Y','Z'), type=float, required=True,
-                        help="Galactic coordinates of target destination")
-    parser.add_argument('--cached', action='store_true', help="Reuse nodes data from previous run")
-    parser.add_argument('--starsfile', metavar='FILE',
-                        help="Path to EDSM system coordinates JSON file")
-    parser.add_argument('--max-tries','-N', metavar='N', type=int, default=23,
-                        help="How many times to shuffle and reroute before returning best result (default 23)")
-    args = parser.parse_args()
-    
-    if not args.range_on_fumes:
-        args.range_on_fumes = args.range+0.01
-    jumpable_distances = [0] + [x*y for x in [1, 1.25, 1.5, 2.0] for y in [args.range, args.range_on_fumes]]
-    
-    start_coords = dict(zip( ['x','y','z'], args.startcoords ))
-    end_coords   = dict(zip( ['x','y','z'], args.destcoords ))
-    
-    max_tries = args.max_tries
+	logs = logging.getLogger('gapjumper')
+	parser = argparse.ArgumentParser(
+		description="""You want to directly cross from one spiral arm of the
+		galaxy to another but there is this giant gap between them?
+		This program helps you to find a way.
+
+		Default behavior is to use the EDSM API to load stars on-demand. Use
+		the --starsfile option if you have downloaded the systemsWithCoordinates.json
+		nigthly dump from EDSM.""",
+		epilog="See README.md for further information.")
+	parser.add_argument('--range','-r', metavar='LY', required=True, type=float, 
+						help="Ship range with a full fuel tank (required)")
+	parser.add_argument('--range-on-fumes','-rf', metavar='LY', type=float,
+						help="Ship range with fuel for one jump (defaults equal to range)")
+	parser.add_argument('--startcoords','-s', nargs=3, metavar=('X','Y','Z'), type=float, required=True,
+						help="Galactic coordinates to start routing from")
+	parser.add_argument('--destcoords','-d',  nargs=3, metavar=('X','Y','Z'), type=float, required=True,
+						help="Galactic coordinates of target destination")
+	parser.add_argument('--cached', action='store_true', help="Reuse nodes data from previous run")
+	parser.add_argument('--starsfile', metavar='FILE',
+						help="Path to EDSM system coordinates JSON file")
+	parser.add_argument('--max-tries','-N', metavar='N', type=int, default=23,
+						help="How many times to shuffle and reroute before returning best result (default 23)")
+	parser.add_argument('--verbose','-v', action='store_true', help='Enable verbose logging')
+	args = parser.parse_args()
+
+	if args.verbose:
+		logs.setLevel(logging.INFO)
+	if not args.range_on_fumes:
+		args.range_on_fumes = args.range+0.01
+	jumpable_distances = [0] + [x*y for x in [1, 1.25, 1.5, 2.0] for y in [args.range, args.range_on_fumes]]
+
+	start_coords = dict(zip( ['x','y','z'], args.startcoords ))
+	end_coords   = dict(zip( ['x','y','z'], args.destcoords ))
+
+	max_tries = args.max_tries
 
 # After the program was executed once, the database with all found stars 
 # for a given route and the corresponding notes are stored.
@@ -130,48 +135,48 @@ if __name__ == "__main__":
 # 4.: The rest of the program is the same.
 
 ## Code path: load previously saved nodes
-    if args.cached:
-        filename = path + 'stars_on'
-        with open(filename, 'rb') as f:
-            stars = pickle.load(f)
+	if args.cached:
+		filename = path + 'stars_on'
+		with open(filename, 'rb') as f:
+			stars = pickle.load(f)
 
 #         filename = path + 'all_nodes'
 #         with open(filename, 'rb') as f:
 #             pristine_nodes = pickle.load(f)
 
 ## Code path: load stars from API or JSON
-    else:
-        if not args.starsfile:
-            stars = on.find_systems_online(start_coords, end_coords)
-        else:
-            infile = args.starsfile
-            stars = off.find_systems_offline(start_coords, end_coords, infile)
+	else:
+		if not args.starsfile:
+			stars = on.find_systems_online(start_coords, end_coords)
+		else:
+			infile = args.starsfile
+			stars = off.find_systems_offline(start_coords, end_coords, infile)
 
-        filename = path + 'stars_on'
-        with open(filename, 'wb') as f:
-            pickle.dump(stars, f)
+		filename = path + 'stars_on'
+		with open(filename, 'wb') as f:
+			pickle.dump(stars, f)
 
 ## Always regenerate nodes, in case jump range changed
 ## Still pickle nodes to disk, but only for debugging purposes
-    pristine_nodes = af.create_nodes(stars, jumpable_distances)
+	pristine_nodes = af.create_nodes(stars, jumpable_distances)
 
-    filename = path + 'all_nodes'
-    with open(filename, 'wb') as f:
-        pickle.dump(pristine_nodes, f)
+	filename = path + 'all_nodes'
+	with open(filename, 'wb') as f:
+		pickle.dump(pristine_nodes, f)
 
 
 
-    start_star, end_star = af.find_closest(stars, start_coords, end_coords)
+	start_star, end_star = af.find_closest(stars, start_coords, end_coords)
 
-    fewest_jumps_jumper = fr.find_path(max_tries, stars, start_star, end_star, \
-                                                                    pristine_nodes)
+	fewest_jumps_jumper = fr.find_path(max_tries, stars, start_star, end_star, \
+																	pristine_nodes)
 
-    print()
-    print("Start at: ", start_star)
-    print("  End at: ", end_star)
-    print("\nNumber of stars considered: ", len(stars))
+	print()
+	print("Start at: ", start_star)
+	print("  End at: ", end_star)
+	print("\nNumber of stars considered: ", len(stars))
 
-    af.print_jumper_information(pristine_nodes, fewest_jumps_jumper)
+	af.print_jumper_information(pristine_nodes, fewest_jumps_jumper)
 
 
 

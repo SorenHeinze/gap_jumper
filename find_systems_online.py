@@ -27,7 +27,7 @@ import additional_functions as af
 import logging
 import time
 
-logs = logging.getLogger(__name__)
+logs = logging.getLogger('gapjumper.online')
 
 # Things that are needed to find a point on the line between the start- and 
 # the end-coords.
