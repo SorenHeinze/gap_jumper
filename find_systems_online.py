@@ -24,7 +24,10 @@ from math import sqrt
 import json
 import requests
 import additional_functions as af
+import logging
+import time
 
+logs = logging.getLogger('gapjumper.online')
 
 # Things that are needed to find a point on the line between the start- and 
 # the end-coords.
@@ -109,8 +112,8 @@ def calculate_line_stuff(start_coords, end_coords):
 # Afterwards I move one cube length along the line and do the same. Stars
 # that are "found again" will be removed. But the latter two things are 
 # taking place in find_systems_online() and extract_information().
-def stars_in_cubes_around_line(center_coords, perpendicular_vector_1, \
-															perpendicular_vector_2):
+def stars_in_cubes_around_line(center_coords,
+							   perpendicular_vector_1, perpendicular_vector_2):
 	url = 'https://www.edsm.net/api-v1/cube-systems'
 	# I want a stack of 5 x 5 cubes.
 	counter_1 = -2
@@ -127,10 +130,25 @@ def stars_in_cubes_around_line(center_coords, perpendicular_vector_1, \
 			z_ = center_coords['z'] + 200 * counter_1 * perpendicular_vector_1['z'] + \
 												200 * counter_2 * perpendicular_vector_2['z']
 
-			payload = {'x':x_, 'y':y_, 'z':z_, 'size':200, 'showCoordinates':1, \
-																'showPrimaryStar':1}
+			payload = {'x':x_, 'y':y_, 'z':z_, 'size':200, 'showCoordinates':1, 'showPrimaryStar':1}
+			logs.info("GET edsm/cube with %s", payload)
 			systems = requests.get(url, params = payload)
+			if systems.status_code != requests.codes.ok:
+				logs.error("HTTP ERROR %d for %s with %s", systems.status_code, url, payload)
+				break
 			all_stars.append(systems.json())
+
+			## Rate limit throttling logic
+			_rl_lim = int(systems.headers['x-rate-limit-limit'])
+			_rl_remain = int(systems.headers['x-rate-limit-remaining'])
+			_rl_reset = int(systems.headers['x-rate-limit-reset'])
+			logs.info("Rate limit:%d %d %d",_rl_lim,_rl_remain,_rl_reset)
+			if _rl_remain == 0 and _rl_reset > 0:
+				logs.warning("Rate limit exceeded, sleeping %s seconds", _rl_reset)
+				time.sleep(_rl_reset)
+			if _rl_remain < 5 and _rl_reset > 0:
+				logs.info("Rate limit pause, 10 seconds")
+				time.sleep(10)
 
 			counter_2 += 1
 

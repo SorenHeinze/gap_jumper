@@ -89,6 +89,7 @@ def create_nodes(stars, jumpable_distances):
 
 # Just to print the complete path information in a pretty way.
 def pretty_print(pristine_nodes, jumper):
+	syswidth = max([len(s) for s in jumper.visited_systems])
 	for i in range(len(jumper.visited_systems)):
 		starname = jumper.visited_systems[i]
 		jump_type = jumper.jump_types[i]
@@ -100,9 +101,11 @@ def pretty_print(pristine_nodes, jumper):
 		y_ = node.data['y']
 		z_ = node.data['z']
 
-		this = '{}\t{}\t{}\t'.format(starname.replace(' ', '_'), distance, jump_type)
-		that = '{}\t{}\t{}\t{}'.format(scoopable, x_, y_, z_)
-		print(this + that)
+		msg = '{:{syswidth}}  ' + '\t'.join(['{}']*3 + ['{:8.2f}']*3)
+		print(msg.format(starname, distance, jump_type, scoopable, x_, y_, z_, syswidth=syswidth))
+		#this = '{}\t{}\t{}\t'.format(starname, distance, jump_type)
+		#that = '{}\t{}\t{}\t{}'.format(scoopable, x_, y_, z_)
+		#print(this + that)
 
 
 
