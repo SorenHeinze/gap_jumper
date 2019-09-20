@@ -124,6 +124,8 @@ def get_star_into_dict(stars, start_coords, end_coords, \
 	if within_limits(max_limits, min_limits, start_coords, end_coords, data):
 		star_data = data['coords']
 		star_data.update({'scoopable':True})
+		star_data.update({'neutron':False})
+		star_data.update({'id':data['id']})
 
 		stars[data['name']] = star_data
 
@@ -174,17 +176,37 @@ def find_systems_offline(start_coords, end_coords, infile):
 											max_limits, min_limits, data)
 
 			# Just for information how far the calculation has become.
-			if i % 1000000 == 0:
+			if i % 100000 == 0:
 				print("checked star #{} ...".format(i))
 
 	return stars
 
 
 
+# The file that contains the information about all neutron stars has a 
+# different structure than the systemsWithCoordinates.json file. Hence, it got
+# its own function to find the necessary information in it.
+def collect_neutron_information(infile):
+	neutron = set()
+	with open(infile, 'r') as f:
+		f.readline()
+		for i, line in enumerate(f):
+			id_number = int(line.split(',')[0].replace('"', ''))
+			neutron.update([id_number])
+
+	return neutron
 
 
-
-
+# If neutron boosting shall be used, the stars that were figured out to be
+# potential candidates need to be updated with the information if they are
+# neutron stars. This function does that.
+# < stars > is the dict with the information about said stars.
+# < neutron_stars > is the set with the id's of the systems that contain 
+# neutron stars.
+def update_stars_with_neutrons(stars, neutron_stars):
+	for starname, data in stars.items():
+		if data['id'] in neutron_stars:
+			stars[starname]['neutron'] = True
 
 
 

@@ -130,9 +130,11 @@ def stars_in_cubes_around_line(center_coords,
 			z_ = center_coords['z'] + 200 * counter_1 * perpendicular_vector_1['z'] + \
 												200 * counter_2 * perpendicular_vector_2['z']
 
-			payload = {'x':x_, 'y':y_, 'z':z_, 'size':200, 'showCoordinates':1, 'showPrimaryStar':1}
+			payload = {'x':x_, 'y':y_, 'z':z_, 'size':200, 'showCoordinates':1, \
+													'showPrimaryStar':1, 'showId':1}
 			logs.info("GET edsm/cube with %s", payload)
 			systems = requests.get(url, params = payload)
+
 			if systems.status_code != requests.codes.ok:
 				logs.error("HTTP ERROR %d for %s with %s", systems.status_code, url, payload)
 				break
@@ -197,6 +199,7 @@ def extract_information(stars, this_section_stars):
 			for this_dict in element:
 				starname = this_dict['name']
 				coords = this_dict['coords']
+				this_id = this_dict['id']
 				# This can be True or False or None.
 				scoopable = this_dict['primaryStar']['isScoopable']
 
@@ -206,6 +209,8 @@ def extract_information(stars, this_section_stars):
 				stars[starname] = {}
 				stars[starname].update(coords)
 				stars[starname]['scoopable'] = scoopable
+				stars[starname]['id'] = this_id
+				stars[starname]['neutron'] = False
 
 	return stars
 

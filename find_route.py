@@ -81,11 +81,25 @@ def get_nodes_that_can_send_jumpers(all_nodes, this_distance):
 	starnames = []
 	for starname, node in all_nodes.items():
 		if node.jumper:
+			# If neutron jumping is permitted, it shall always have priority
+			# over all other jumps.
+			if node.neutron:
+				original_this_distance = deepcopy(this_distance)
+				# Minus one because < this_distance > starts counting at zero.
+				this_distance = len(node.reachable) - 1
+
 			node._check_free_stars(this_distance)
 			if len(node.can_jump_to) != 0:
 				starnames.append(starname)
 
+			# In case < this_distance > was changed due to a neutron 
+			# boosted jump, it needs to be set back to the original 
+			# value.
+			if node.neutron:
+				this_distance = deepcopy(original_this_distance)
+
 	return starnames
+
 
 
 # This does all the above and finds a way from start to end (or not).
@@ -95,7 +109,9 @@ def explore_path(all_nodes, stars, final_node):
 	this_distance = 0
 	# See below why I have this. And yes, I know that it is actually "magic".
 	magick_fuel = False
+	j = 0
 	while not final_node.visited:
+		j += 1
 		starnames = get_nodes_that_can_send_jumpers(all_nodes, this_distance)
 
 		# If no jump can take place with the given jump-distance ...
@@ -136,7 +152,23 @@ def explore_path(all_nodes, stars, final_node):
 
 			for starname in starnames:
 				node = all_nodes[starname]
+				# If neutron jumping is permitted, it shall always have 
+				# priority over all other jumps. That means that 
+				# < this_distance > is set to the maximum value in 
+				# get_nodes_that_can_send_jumpers() and this needs to be 
+				# taken care of here, too.
+				if node.neutron:
+					#print(this_distance)
+					original_this_distance = deepcopy(this_distance)
+					this_distance = len(node.reachable) - 1
+
 				node._send_jumpers(this_distance)
+
+				# In case < this_distance > was changed due to a neutron 
+				# boosted jump, it needs to be set back to the original 
+				# value.
+				if node.neutron:
+					this_distance = deepcopy(original_this_distance)
 
 			# If any jump took place, try first to do a regular jump afterwards.
 			this_distance = 0
@@ -195,8 +227,8 @@ def better_jumper(i, max_tries, jumper, data):
 		level_2_boosts = new_level_2_boosts
 		level_3_boosts = new_level_3_boosts
 
-	data = (fewest_jumps_jumper, fewest_jumps, level_3_boosts, level_2_boosts, \
-																	level_1_boosts)
+	data = (fewest_jumps_jumper, fewest_jumps, level_3_boosts, \
+										level_2_boosts, level_1_boosts)
 
 	return data
 
@@ -204,7 +236,11 @@ def better_jumper(i, max_tries, jumper, data):
 
 # This is the main loop, that will search for the shortest and for the most 
 # economic path as often as < max_tries >.
-def find_path(max_tries, stars, start_star, end_star, pristine_nodes):
+def find_path(max_tries, stars, start_star, end_star, \
+									pristine_nodes, neutron_boosting):
+	# This is just for the case that neutron boosting is allowed.
+	way_back_jumper = None
+
 	final_name = list(end_star.keys())[0]
 	fewest_jumps_jumper = None
 	fewest_jumps = 99999
@@ -213,8 +249,8 @@ def find_path(max_tries, stars, start_star, end_star, pristine_nodes):
 	level_1_boosts = 99999
 
 	# This is just to keep the list of parameters for better_jumper() short.
-	data = (fewest_jumps_jumper, fewest_jumps, level_3_boosts, level_2_boosts, \
-																	level_2_boosts)
+	data = (fewest_jumps_jumper, fewest_jumps, level_3_boosts, \
+										level_2_boosts, level_2_boosts)
 
 	i = 0
 	while i < max_tries:
@@ -231,6 +267,12 @@ def find_path(max_tries, stars, start_star, end_star, pristine_nodes):
 		else:
 			jumper = None
 
+		if jumper and neutron_boosting and not way_back_jumper:
+			# Since < all_nodes > is modified in explore_path I need to get the 
+			# pristine nodes again.
+			all_nodes = deepcopy(pristine_nodes)
+			way_back_jumper = way_back(all_nodes, stars, start_star, end_star)
+
 		if jumper:
 			data = better_jumper(i, max_tries, jumper, data)
 		else:
@@ -240,7 +282,7 @@ def find_path(max_tries, stars, start_star, end_star, pristine_nodes):
 
 	fewest_jumps_jumper = data[0]
 
-	return fewest_jumps_jumper
+	return fewest_jumps_jumper, way_back_jumper
 
 
 
@@ -279,6 +321,33 @@ def find_more_direct_way(final_node, all_nodes):
 
 	final_node.jumper.visited_systems = visited
 	final_node.jumper.jump_types = jump_types
+
+
+
+# If neutron boosting is allowed a pilot can in principle get stuck. This is
+# because she or he can use a neutron boosted jump to reach a non neutron 
+# star containing system which is not within maximum jumponium boosted jump 
+# range of any other system. This can mean that the goal will be reached but
+# that maybe a way back is not possible. 
+# Thus, if neutron boosting is allowed, this function is called once and it 
+# checks once, if a way back is possible.
+# It is basically the important path of find_path() again, just with start and
+# goal switched and without trying finding a better path. One way back 
+# is sufficient enough.
+# < all_nodes > are all pristine nodes
+# < start_star > and < end_star > are the _actual_ start and goal. The
+# switching will take place inside this function.
+def way_back(all_nodes, stars, start_star, end_star):
+	final_name = list(start_star.keys())[0]
+	create_jumper_at_start(end_star, all_nodes)
+	final_node = all_nodes[final_name]
+
+	explore_path(all_nodes, stars, final_node)
+
+	if final_node.visited:
+		return final_node.jumper
+	else:
+		return None
 
 
 

@@ -63,20 +63,43 @@ class Node(object):
 		# I want to keep the original dict for this star, just in case.
 		# It also contains the x, y and z coordinates of the system.
 		self.data = data
-		# See comment to in_box() why i have these.
-		self.x_upper = self.data['x'] + abs(self.jump_distances[-1])
-		self.x_lower = self.data['x'] - abs(self.jump_distances[-1])
-		self.y_upper = self.data['y'] + abs(self.jump_distances[-1])
-		self.y_lower = self.data['y'] - abs(self.jump_distances[-1])
-		self.z_upper = self.data['z'] + abs(self.jump_distances[-1])
-		self.z_lower = self.data['z'] - abs(self.jump_distances[-1])
-
+		# Neutron stars will allow extremely long jumps, but just neutron
+		# stars allow that. Hence, I'd like have easy access to this attribute
+		# of a star
+		self.neutron = self.data['neutron']
+		# See comment to _calculate_limits() what I'm doing here and why.
+		self._calculate_limits()
 		# I figure once out which other stars can be reached with a given jump
 		# range from the given system. So each list is a list of the stars up 
 		# to a certain distance.
-		self.reachable = [[], [], [], [], [], [], [], []]
-
+		# self.jump_distances has zero as the very first element and is thus
+		# one element longer than self.reachable shall be.
+		self.reachable = [[] for i in range(len(self.jump_distances) - 1)]
+		# And finally figure out all the stars that can be reached with a
+		# given jumprange.
 		self._find_reachable_stars(all_stars)
+
+
+	# Creating these nodes takes A LOT of time if many nodes are to be created.
+	# It seems that calculating the distances to all other stars requires most 
+	# of this time. Hence, I decided that the distances shall just be 
+	# calculated if a star actually can be reached. The latter means that it
+	# is "in a box", with side length's equal to the maximum jump range, 
+	# around this node. 
+	# This decreased the time to create all the nodes by a factor of twenty (!).
+	# This function creates the boundaries of said box.
+	def _calculate_limits(self):
+		if self.neutron:
+			half_cube_length = self.jump_distances[-1]
+		else:
+			half_cube_length = self.jump_distances[-2]
+
+		self.x_upper = self.data['x'] + half_cube_length
+		self.x_lower = self.data['x'] - half_cube_length
+		self.y_upper = self.data['y'] + half_cube_length
+		self.y_lower = self.data['y'] - half_cube_length
+		self.z_upper = self.data['z'] + half_cube_length
+		self.z_lower = self.data['z'] - half_cube_length
 
 
 	# This calculates the distance to another star.
@@ -91,14 +114,9 @@ class Node(object):
 		return sqrt(x_square + y_square + z_square)
 
 
-	# Creating these nodes takes A LOT of time if many nodes are to be created.
-	# It seems that calculating the distances to all other stars requires most 
-	# of this time. Hence, I decided that the distances shall just be 
-	# calculated if a star actually can be reached. The latter means that it
-	# is "in a box", with side length's equal to the maximum jump range, 
-	# around this node. This function checks for that.
-	# This decreased the time needed by a factor of twenty (!).
-	def in_box(self, second_star_data):
+	# This function checks for if a star is within the box of reachable stars
+	# around a given node. See also comment to _calculate_limits().
+	def _in_box(self, second_star_data):
 		first = self.x_lower < second_star_data['x'] < self.x_upper
 		second = self.y_lower < second_star_data['y'] < self.y_upper
 		third = self.z_lower < second_star_data['z'] < self.z_upper
@@ -120,10 +138,20 @@ class Node(object):
 			# square box the below calculations still need to take care of 
 			# case that a star is in the box but outside maximum jumping 
 			# distance. This is implemented below.
-			if not self.in_box(data):
+			if not self._in_box(data):
 				continue
 
 			distance = self._this_distance(data)
+
+			# The cube contains volumes outside the sphere of the maximum
+			# jump range around a node. Don't do anything if another star falls
+			# into such an area.
+			# Remember that the last element in self.jump_distances is the 
+			# jump distance for neutron boosted jumps.
+			if not self.neutron and distance > self.jump_distances[-2]:
+				continue
+			elif distance > self.jump_distances[-1]:
+				continue
 
 			# ATTENTION: self.jump_distances contains zero as the first 
 			# element to make this if-condition possible. Thus it is ONE 
@@ -279,11 +307,14 @@ class Jumper(object):
 		# second distance type is on fumes (every number in 
 		# class Node => .jump_distances with an even index).
 		on_fumes = (this_distance + 1) % 2 == 0
+		neutron_boosted = (this_distance + 1) % 9 == 0
 
 		jump_types = 'B{}'.format(boost_type)
 
 		if on_fumes:
 			jump_types = jump_types + 'F'
+		elif neutron_boosted:
+			jump_types = 'neutron'
 
 		self.jump_types.append(jump_types)
 

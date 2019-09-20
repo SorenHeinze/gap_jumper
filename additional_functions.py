@@ -103,23 +103,22 @@ def pretty_print(pristine_nodes, jumper):
 
 		msg = '{:{syswidth}}  ' + '\t'.join(['{}']*3 + ['{:8.2f}']*3)
 		print(msg.format(starname, distance, jump_type, scoopable, x_, y_, z_, syswidth=syswidth))
-		#this = '{}\t{}\t{}\t'.format(starname, distance, jump_type)
-		#that = '{}\t{}\t{}\t{}'.format(scoopable, x_, y_, z_)
-		#print(this + that)
+
 
 
 
 # To print the information about the path in a good way.
 def print_jumper_information(pristine_nodes, fewest_jumps_jumper):
 	if fewest_jumps_jumper:
-		print()
+		jump_types = fewest_jumps_jumper.jump_types
 		number_jumps = len(fewest_jumps_jumper.visited_systems)
-		level_3_boosts = len([x for x in fewest_jumps_jumper.jump_types if '3' in x])
-		level_2_boosts = len([x for x in fewest_jumps_jumper.jump_types if '2' in x])
-		level_1_boosts = len([x for x in fewest_jumps_jumper.jump_types if '1' in x])
+		neutron_boosts = len([x for x in jump_types if 'neutron' in x])
+		level_3_boosts = len([x for x in jump_types if '3' in x])
+		level_2_boosts = len([x for x in jump_types if '2' in x])
+		level_1_boosts = len([x for x in jump_types if '1' in x])
 
-		that = '{} => {}, {}, {}'.format(number_jumps, level_3_boosts, \
-													level_2_boosts, level_1_boosts)
+		that = '{} => {}, {}, {}, {}'.format(number_jumps, neutron_boosts, \
+								level_3_boosts, level_2_boosts, level_1_boosts)
 		print("fewest jumps: ", that)
 
 		print()

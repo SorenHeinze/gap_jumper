@@ -45,40 +45,16 @@ import logging
 ## ## ## ## ##                            ## ## ## ## ##
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
-# start- and end-coordinates from in-game starmap
-# Below you can see an example
-
-# start_coords = {'x': 15015.0, 'y': -22.0, 'z': -7701.0}
-# end_coords = {'x': 17021.0, 'y': -15.0, 'z': -9677.0}
-
-# The distances the spaceship can jump.
-# 
-# ATTENTION: The very first value MUST be zero!
-# ATTENTION: every valuewith an indice divisible by two is the jump distances 
-# on fumes, for the given boost level. So it needs to look like this 
-# (boost_0 is a regular jump):
-# [0, boost_0_jump, boost_0_jump_on_fumes, boost_1_jump, boost_1_jump_on_fumes ... ]
-# Below you can see an example.
-
-# jumpable_distances = [0, 53.95, 58.22, 67.43, 72.77, 80.92, 87.33, 107.90, 116.44]
-
-# Number of tries to find the best path.
-# Use 1000 to be really sure, but sth. like 23 should give you results which 
-# are not too far away from the most economic or fewest jumps route.
-#max_tries = 23
-
-# Set this to < True > if you have downloaded the systemsWithCoordinates.json
-# nigthly dump from EDSM.
-# The data can be downloaded here: https://www.edsm.net/en/nightly-dumps
-# The offline process will find more stars than the online algorithm (due to 
-# limitations getting the data via the EDSM API). Thus it may find more 
-# efficient routes. But it requires of course to download a rather large file.
-#search_offline = False
-#coordinates_file ='systemsWithCoordinates.json'
-
 # The path where the systemsWithCoordinates.json can be found. In this folder 
 # the found systems file will be stored, too.
-path = ''
+path = '/home/soren/Desktop/gap_jumper_collaboration/gap_jumper/data_2/'
+
+# In case neutron boosting shall be allowed, the necessary information must
+# be provided. The file with all known neutron stars can be found here: 
+# https://edastro.com/mapcharts/files/neutron-stars.csv
+# ATTENTION: It is assumed that this file will be in the same folder as the
+# < coordinates_file >.
+neutron_file = 'neutron-stars.csv'
 
 ## Beginning of program execution when run from the command line
 if __name__ == "__main__":
@@ -94,14 +70,20 @@ if __name__ == "__main__":
 		the --starsfile option if you have downloaded the systemsWithCoordinates.json
 		nigthly dump from EDSM.""",
 		epilog="See README.md for further information.")
+
+	# From the parser-documentation:
+	# Any internal < - > characters will be converted to < _ > characters to 
+	# make sure the string is a valid attribute name.
 	parser.add_argument('--range','-r', metavar='LY', required=True, type=float, 
 						help="Ship range with a full fuel tank (required)")
 	parser.add_argument('--range-on-fumes','-rf', metavar='LY', type=float,
 						help="Ship range with fuel for one jump (defaults equal to range)")
 	parser.add_argument('--startcoords','-s', nargs=3, metavar=('X','Y','Z'), type=float, required=True,
 						help="Galactic coordinates to start routing from")
-	parser.add_argument('--destcoords','-d',  nargs=3, metavar=('X','Y','Z'), type=float, required=True,
+	parser.add_argument('--destcoords','-d', nargs=3, metavar=('X','Y','Z'), type=float, required=True,
 						help="Galactic coordinates of target destination")
+	parser.add_argument('--neutron-boosting','-nb', metavar=('True/False'), type=bool, default=False,
+						help="Utilize Neutron boosting. If set to True the file must be in the folder as specified in the sourcecode (for now)")
 	parser.add_argument('--cached', action='store_true', help="Reuse nodes data from previous run")
 	parser.add_argument('--starsfile', metavar='FILE',
 						help="Path to EDSM system coordinates JSON file")
@@ -113,14 +95,19 @@ if __name__ == "__main__":
 	if args.verbose:
 		logs.setLevel(logging.INFO)
 		logs.info("Verbose logging enabled")
+
 	if not args.range_on_fumes:
 		args.range_on_fumes = args.range+0.01
-	jumpable_distances = [0] + [x*y for x in [1, 1.25, 1.5, 2.0] for y in [args.range, args.range_on_fumes]]
+
+	# ATTENTION: The very first value MUST be zero!
+	jumpable_distances = [0] + [x*y for x in [1, 1.25, 1.5, 2.0] for y in [args.range, args.range_on_fumes]] + [args.range * 4]
 
 	start_coords = dict(zip( ['x','y','z'], args.startcoords ))
 	end_coords   = dict(zip( ['x','y','z'], args.destcoords ))
 
 	max_tries = args.max_tries
+
+	neutron_boosting = args.neutron_boosting
 
 # After the program was executed once, the database with all found stars 
 # for a given route and the corresponding notes are stored.
@@ -142,10 +129,6 @@ if __name__ == "__main__":
 		with open(filename, 'rb') as f:
 			stars = pickle.load(f)
 
-#         filename = path + 'all_nodes'
-#         with open(filename, 'rb') as f:
-#             pristine_nodes = pickle.load(f)
-
 ## Code path: load stars from API or JSON
 	else:
 		if not args.starsfile:
@@ -154,9 +137,18 @@ if __name__ == "__main__":
 			infile = args.starsfile
 			stars = off.find_systems_offline(start_coords, end_coords, infile)
 
-		filename = path + 'stars_on'
-		with open(filename, 'wb') as f:
-			pickle.dump(stars, f)
+	if neutron_boosting:
+		infile = path + neutron_file
+		neutron_stars = off.collect_neutron_information(infile)
+		off.update_stars_with_neutrons(stars, neutron_stars)
+
+	# Yes, if cached stars are used this will be written to disk right after 
+	# loading it. However, if neutron boosting is allowed, < stars > will have 
+	# changed. Thus, it needs to be here.
+	filename = path + 'stars_on'
+	with open(filename, 'wb') as f:
+		pickle.dump(stars, f)
+
 
 ## Always regenerate nodes, in case jump range changed
 ## Still pickle nodes to disk, but only for debugging purposes
@@ -166,25 +158,33 @@ if __name__ == "__main__":
 	with open(filename, 'wb') as f:
 		pickle.dump(pristine_nodes, f)
 
-
-
 	start_star, end_star = af.find_closest(stars, start_coords, end_coords)
 
-	fewest_jumps_jumper = fr.find_path(max_tries, stars, start_star, end_star, \
-																	pristine_nodes)
+	fewest_jumps_jumper, way_back_jumper = fr.find_path(max_tries, stars, \
+						start_star, end_star, pristine_nodes, neutron_boosting)
 
 	print()
 	print("Start at: ", start_star)
 	print("  End at: ", end_star)
 	print("\nNumber of stars considered: ", len(stars))
 
+	if neutron_boosting:
+		this = "\n\nATTENTION: Neutron boosted jumps are enabled BUT you need "
+		that = "to make sure for yourself that you DON'T RUN OUT OF FUEL!"
+		print(this + that)
+
 	af.print_jumper_information(pristine_nodes, fewest_jumps_jumper)
 
-
-
-
-
-
+	if neutron_boosting:
+		if not way_back_jumper:
+			this = "\n\nATTENTION: Neutron jumping may allow you to get to your "
+			that = "goal BUT no way back could be found.\nHowever, you may still "
+			siht = "be able to find a way manually since not all systems are "
+			taht = "registered in the database."
+			print(this + that + siht + taht)
+		else:
+			print("\nYou will be able to get back. This is ONE possible way back.\n")
+			af.print_jumper_information(pristine_nodes, way_back_jumper)
 
 
 

@@ -37,6 +37,8 @@ optional arguments:
                         Galactic coordinates to start routing from
   --destcoords X Y Z, -d X Y Z
                         Galactic coordinates of target destination
+  --neutron-boosting bool, -nb bool
+                        Utilize Neutron boosting. If set to True the file must be in the folder as specified in the sourcecode (for now)
   --cached              Reuse nodes data from previous run
   --starsfile FILE      Path to EDSM system coordinates JSON file
   --max-tries N, -N N   How many times to shuffle and reroute before
@@ -61,9 +63,9 @@ The above invocation will query the EDSM API for the necessary system coordinate
 Advanced usage:
 
     python gap_jumper.py -r 60 -rf 63.5 -s -1111.56 -134.22 65269.75 
-        -d -1502.16 -2.63 65630.17 --starsfile systems.json -N 40
+        -d -1502.16 -2.63 65630.17 --starsfile /path/to/systems.json -N 40 -nb True
 
-The above example uses the abbreviated options syntax. Here we specify a ship with base range of 60 LY and also specify a "range on fumes". The computed route will recommend reduced-fuel jumps when possible to save synth materials. Additionally, this example assumes that the `systemsWithCoordinates.json` file has been downloaded from [EDSM Nightly Dumps](https://www.edsm.net/en/nightly-dumps) as `systems.json`, and will make 40 randomized attempts to find an optimal route. 
+The above example uses the abbreviated options syntax. Here we specify a ship with base range of 60 LY and also specify a "range on fumes". The computed route will recommend reduced-fuel jumps when possible to save synth materials. Additionally, this example assumes that the `systemsWithCoordinates.json` file has been downloaded from [EDSM Nightly Dumps](https://www.edsm.net/en/nightly-dumps) as `systems.json`, 40 randomized attempts will be made to find an optimal route. In addition it is assumed that the file with the neutron star information was downloaded from [edastro.com](https://edastro.com/mapcharts/files/neutron-stars.csv) and thus neutron boosts will be utilized (if possible).
 
 During each run, the data for the set of stars considered is cached in the local directory. The option `--cached` makes use of this cache instead of querying EDSM or attempting to open the systems.json file. This is much faster if you want to adjust your search parameters within the same region of space.
 
