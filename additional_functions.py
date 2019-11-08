@@ -22,6 +22,9 @@
 import class_definitions as cd
 from math import sqrt
 from time import time
+import argparse
+import os
+import requests
 
 
 # This finds the closest system to a given point. Used e.g. to find the 
@@ -106,7 +109,6 @@ def pretty_print(pristine_nodes, jumper):
 
 
 
-
 # To print the information about the path in a good way.
 def print_jumper_information(pristine_nodes, fewest_jumps_jumper):
 	if fewest_jumps_jumper:
@@ -125,6 +127,93 @@ def print_jumper_information(pristine_nodes, fewest_jumps_jumper):
 		input("Below is a list of ALL stars visited (press ENTER): ")
 		pretty_print(pristine_nodes, fewest_jumps_jumper)
 	print()
+
+
+
+# In this function the command line arguments are "processed". It exists mainly
+# to keep the main program more tidy.
+def get_arguments():
+	parser = argparse.ArgumentParser(
+		description="""You want to directly cross from one spiral arm of the
+		galaxy to another but there is this giant gap between them?
+		This program helps you to find a way.
+
+		Default behavior is to use the EDSM API to load stars on-demand. Use
+		the --starsfile option if you have downloaded the systemsWithCoordinates.json
+		nigthly dump from EDSM.""",
+		epilog="See README.md for further information.")
+
+	# From the parser-documentation:
+	# Any internal < - > characters will be converted to < _ > characters to 
+	# make sure the string is a valid attribute name.
+	text = "Ship range with a full fuel tank (required)"
+	parser.add_argument('--jumprange','-r', metavar = 'LY', required = True, \
+													type = float, help = text)
+
+	text = "Ship range with fuel for one jump (defaults equal to range)."
+	parser.add_argument('--range-on-fumes','-rf', metavar = 'LY', \
+													type = float, help = text)
+
+	text = "Galactic coordinates to start routing from."
+	parser.add_argument('--startcoords','-s', nargs = 3, metavar = ('X','Y','Z'), \
+									type = float, required = True, help = text)
+
+	text = "Galactic coordinates of target destination."
+	parser.add_argument('--destcoords','-d', nargs = 3, metavar = ('X','Y','Z'), \
+									required = True, type = float, help = text)
+
+	this = "Utilize Neutron boosting. If set to True the Neutron Stars file "
+	that = "will be downloaded if necessary."
+	parser.add_argument('--neutron-boosting','-nb', metavar = ('True/False'), \
+							type = bool, default = False, help = this + that)
+
+	text = "Reuse nodes data from previous run"
+	parser.add_argument('--cached', action = 'store_true', help = text)
+
+	text = "Path to EDSM system coordinates JSON file."
+	parser.add_argument('--starsfile', metavar = 'FILE', help = text)
+
+	text = "How many times to shuffle and reroute before returning best result (default 23)."
+	parser.add_argument('--max-tries','-N', metavar = 'N', type = int, \
+													default = 23, help = text)
+
+	text = "Enable verbose logging"
+	parser.add_argument('--verbose','-v', action = 'store_true', help = text)
+
+	args = parser.parse_args()
+
+	return args
+
+
+
+# In case neutron boosting shall be allowed, the necessary information must
+# be provided. The file with all known neutron stars can be found here: 
+# https://edastro.com/mapcharts/files/neutron-stars.csv
+# This function checks if a local copy of the file exists and how old it is. 
+# If it doesn't exist or is older than two days the file will be downloaded.
+def fetch_neutron_file():
+	url = 'https://edastro.com/mapcharts/files/neutron-stars.csv'
+	download = False
+
+	# First, check if the file exists.
+	if not os.path.isfile('./neutron-stars.csv'):
+		download = True
+	else:
+		# Second, check if the file is older than 48 hours.
+		# getmtime() gets the unix time when the file was created.
+		age = time() - os.path.getmtime('./neutron-stars.csv')
+		# The file is updated every 2nd day or every 172,800 seconds.
+		if age > 172800:
+			download = True
+
+	if download:
+		print("Downloading the Neutron Star file. This may take a while ...")
+		this = requests.get(url)
+
+		# Save the file, but don't forget ...
+		with open('./neutron-stars.csv', 'wb') as f:
+			# ... < this > is NOT the file itself!
+			f.write(this.content)
 
 
 

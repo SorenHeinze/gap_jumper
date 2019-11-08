@@ -188,7 +188,10 @@ def find_systems_offline(start_coords, end_coords, infile):
 # its own function to find the necessary information in it.
 def collect_neutron_information(infile):
 	neutron = set()
-	with open(infile, 'r') as f:
+
+	# Yes, the filename is hardcoded.
+	with open('./neutron-stars.csv', 'r') as f:
+		# The first line of the file is irrelevant.
 		f.readline()
 		for i, line in enumerate(f):
 			id_number = int(line.split(',')[0].replace('"', ''))

@@ -36,8 +36,8 @@ import find_systems_offline as off
 import find_systems_online as on
 import find_route as fr
 import pickle
-import argparse
 import logging
+import requests
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 ## ## ## ## ##                            ## ## ## ## ##
@@ -45,62 +45,27 @@ import logging
 ## ## ## ## ##                            ## ## ## ## ##
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
-# The path where the systemsWithCoordinates.json can be found. In this folder 
-# the found systems file will be stored, too.
-path = '/home/soren/Desktop/gap_jumper_collaboration/gap_jumper/data_2/'
 
-# In case neutron boosting shall be allowed, the necessary information must
-# be provided. The file with all known neutron stars can be found here: 
-# https://edastro.com/mapcharts/files/neutron-stars.csv
-# ATTENTION: It is assumed that this file will be in the same folder as the
-# < coordinates_file >.
-neutron_file = 'neutron-stars.csv'
 
-## Beginning of program execution when run from the command line
+
+# Beginning of program execution when run from the command line
 if __name__ == "__main__":
 
 	logs = logging.getLogger('gapjumper')
 	logging.basicConfig()
-	parser = argparse.ArgumentParser(
-		description="""You want to directly cross from one spiral arm of the
-		galaxy to another but there is this giant gap between them?
-		This program helps you to find a way.
 
-		Default behavior is to use the EDSM API to load stars on-demand. Use
-		the --starsfile option if you have downloaded the systemsWithCoordinates.json
-		nigthly dump from EDSM.""",
-		epilog="See README.md for further information.")
-
-	# From the parser-documentation:
-	# Any internal < - > characters will be converted to < _ > characters to 
-	# make sure the string is a valid attribute name.
-	parser.add_argument('--range','-r', metavar='LY', required=True, type=float, 
-						help="Ship range with a full fuel tank (required)")
-	parser.add_argument('--range-on-fumes','-rf', metavar='LY', type=float,
-						help="Ship range with fuel for one jump (defaults equal to range)")
-	parser.add_argument('--startcoords','-s', nargs=3, metavar=('X','Y','Z'), type=float, required=True,
-						help="Galactic coordinates to start routing from")
-	parser.add_argument('--destcoords','-d', nargs=3, metavar=('X','Y','Z'), type=float, required=True,
-						help="Galactic coordinates of target destination")
-	parser.add_argument('--neutron-boosting','-nb', metavar=('True/False'), type=bool, default=False,
-						help="Utilize Neutron boosting. If set to True the file must be in the folder as specified in the sourcecode (for now)")
-	parser.add_argument('--cached', action='store_true', help="Reuse nodes data from previous run")
-	parser.add_argument('--starsfile', metavar='FILE',
-						help="Path to EDSM system coordinates JSON file")
-	parser.add_argument('--max-tries','-N', metavar='N', type=int, default=23,
-						help="How many times to shuffle and reroute before returning best result (default 23)")
-	parser.add_argument('--verbose','-v', action='store_true', help='Enable verbose logging')
-	args = parser.parse_args()
+	args = af.get_arguments()
 
 	if args.verbose:
 		logs.setLevel(logging.INFO)
 		logs.info("Verbose logging enabled")
 
 	if not args.range_on_fumes:
-		args.range_on_fumes = args.range+0.01
+		args.range_on_fumes = args.jumprange + 0.01
 
 	# ATTENTION: The very first value MUST be zero!
-	jumpable_distances = [0] + [x*y for x in [1, 1.25, 1.5, 2.0] for y in [args.range, args.range_on_fumes]] + [args.range * 4]
+	# The last value is for neutron boosted jumps.
+	jumpable_distances = [0] + [x*y for x in [1, 1.25, 1.5, 2.0] for y in [args.jumprange, args.range_on_fumes]] + [args.jumprange * 4]
 
 	start_coords = dict(zip( ['x','y','z'], args.startcoords ))
 	end_coords   = dict(zip( ['x','y','z'], args.destcoords ))
@@ -109,27 +74,27 @@ if __name__ == "__main__":
 
 	neutron_boosting = args.neutron_boosting
 
-# After the program was executed once, the database with all found stars 
-# for a given route and the corresponding notes are stored.
-# This is meant for the case that one and the same route shall be run
-# once more, without collecting all the data again, since the latter is
-# the bottle neck.
-# 
-# If the same stars shall be used but another ship with different
-# < jumpable_distances >.
-# 1.:  uncomment the first thing to load JUST the stars for this route. 
-# 2.: Below, comment out all in connection with af.find_systems().
-# 3.: Create the node informtion again with the new ship information by 
-# NOT having a comment around all in connection with af.create_nodes()
-# 4.: The rest of the program is the same.
+	# After the program was executed once, the database with all found stars 
+	# for a given route and the corresponding notes are stored.
+	# This is meant for the case that one and the same route shall be run
+	# once more, without collecting all the data again, since the latter is
+	# the bottle neck.
+	# 
+	# If the same stars shall be used but another ship with different
+	# < jumpable_distances >.
+	# 1.:  uncomment the first thing to load JUST the stars for this route. 
+	# 2.: Below, comment out all in connection with af.find_systems().
+	# 3.: Create the node informtion again with the new ship information by 
+	# NOT having a comment around all in connection with af.create_nodes()
+	# 4.: The rest of the program is the same.
 
-## Code path: load previously saved nodes
+	# Code path: load previously saved nodes
 	if args.cached:
-		filename = path + 'stars_on'
+		filename = './stars'
 		with open(filename, 'rb') as f:
 			stars = pickle.load(f)
 
-## Code path: load stars from API or JSON
+	# Code path: load stars from API or JSON
 	else:
 		if not args.starsfile:
 			stars = on.find_systems_online(start_coords, end_coords)
@@ -138,23 +103,23 @@ if __name__ == "__main__":
 			stars = off.find_systems_offline(start_coords, end_coords, infile)
 
 	if neutron_boosting:
-		infile = path + neutron_file
+		af.fetch_neutron_file()
+		infile = './neutron-stars.csv'
 		neutron_stars = off.collect_neutron_information(infile)
 		off.update_stars_with_neutrons(stars, neutron_stars)
 
 	# Yes, if cached stars are used this will be written to disk right after 
 	# loading it. However, if neutron boosting is allowed, < stars > will have 
 	# changed. Thus, it needs to be here.
-	filename = path + 'stars_on'
+	filename = './stars'
 	with open(filename, 'wb') as f:
 		pickle.dump(stars, f)
 
-
-## Always regenerate nodes, in case jump range changed
-## Still pickle nodes to disk, but only for debugging purposes
+	# Always regenerate nodes, in case jump range changed
+	# Still pickle nodes to disk, but only for debugging purposes.
 	pristine_nodes = af.create_nodes(stars, jumpable_distances)
 
-	filename = path + 'all_nodes'
+	filename = './all_nodes'
 	with open(filename, 'wb') as f:
 		pickle.dump(pristine_nodes, f)
 
@@ -185,6 +150,12 @@ if __name__ == "__main__":
 		else:
 			print("\nYou will be able to get back. This is ONE possible way back.\n")
 			af.print_jumper_information(pristine_nodes, way_back_jumper)
+
+
+
+
+
+
 
 
 
