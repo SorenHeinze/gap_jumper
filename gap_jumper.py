@@ -39,14 +39,6 @@ import pickle
 import logging
 import requests
 
-## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
-## ## ## ## ##                            ## ## ## ## ##
-## ## ## ## ##   Input information below  ## ## ## ## ##
-## ## ## ## ##                            ## ## ## ## ##
-## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
-
-
-
 
 # Beginning of program execution when run from the command line
 if __name__ == "__main__":
