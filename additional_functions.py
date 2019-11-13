@@ -162,8 +162,8 @@ def get_arguments():
 	parser.add_argument('--destcoords','-d', nargs = 3, metavar = ('X','Y','Z'), \
 									required = True, type = float, help = text)
 
-	this = "Utilize Neutron boosting. If set to True the Neutron Stars file "
-	that = "will be downloaded if necessary."
+	this = "Utilize Neutron boosting. The necessary file will be downloaded "
+	that = "automatically."
 	parser.add_argument('--neutron-boosting','-nb', metavar = ('True/False'), \
 							type = bool, default = False, help = this + that)
 
