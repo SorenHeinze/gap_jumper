@@ -1,4 +1,4 @@
-#    "class_definitions" (v1.1)
+#    "class_definitions" (v2.0)
 #    Copyright 2019 Soren Heinze
 #    soerenheinze (at) gmx (dot) de
 #    5B1C 1897 560A EF50 F1EB 2579 2297 FAE4 D9B5 2A35

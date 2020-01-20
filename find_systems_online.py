@@ -1,4 +1,4 @@
-#    "find_systems_online" (v1.1)
+#    "find_systems_online" (v2.0)
 #    Copyright 2019 Soren Heinze
 #    soerenheinze (at) gmx (dot) de
 #    5B1C 1897 560A EF50 F1EB 2579 2297 FAE4 D9B5 2A35
@@ -112,12 +112,15 @@ def calculate_line_stuff(start_coords, end_coords):
 # Afterwards I move one cube length along the line and do the same. Stars
 # that are "found again" will be removed. But the latter two things are 
 # taking place in find_systems_online() and extract_information().
-def stars_in_cubes_around_line(center_coords,
-							   perpendicular_vector_1, perpendicular_vector_2):
+# < screen > is the instance of class ScreenWork() that calls this function.
+def stars_in_cubes_around_line(center_coords, perpendicular_vector_1, \
+												perpendicular_vector_2, screen):
 	url = 'https://www.edsm.net/api-v1/cube-systems'
 	# I want a stack of 5 x 5 cubes.
 	counter_1 = -2
 	counter_2 = -2
+
+	percentage = 0
 
 	all_stars = []
 	while counter_1 < 3:
@@ -153,6 +156,12 @@ def stars_in_cubes_around_line(center_coords,
 				time.sleep(10)
 
 			counter_2 += 1
+
+			percentage += 4
+			this = screen.star_search_text.text().split('\n')[0] + '\n'
+			that = "Got stars for {} % of this 200 ly wide ".format(percentage)
+			siht = "slice of space from start to end."
+			screen.star_search_text.setText(this + that + siht)
 
 		counter_1 += 1
 		counter_2 = -2
@@ -219,10 +228,13 @@ def extract_information(stars, this_section_stars):
 # This does all of the above.
 # < start_coords > and < end_coords > are dicts with the (approximate) 
 # coordinates of the star at the start and the star at the end.
-def find_systems_online(start_coords, end_coords):
+# < screen > is the instance of class ScreenWork() that calls this function.
+def find_systems_online(start_coords, end_coords, screen):
 	# < unit_vector > is for the line from start- to end-coords.
 	unit_vector, perpendicular_vector_1, perpendicular_vector_2, \
 		start_of_line, end_of_line = calculate_line_stuff(start_coords, end_coords)
+
+	screen.searching_stars = True
 
 	stars = {}
 	center_coords = start_of_line
@@ -234,14 +246,23 @@ def find_systems_online(start_coords, end_coords):
 	# loop, so that (very) short routes are covered, too.
 	difference = 99999999
 	while difference > 100:
+		# For correct closing of all threads after the gui is closed the gui 
+		# close event sets an attribute of the class Motherwindow instance. 
+		# This function checks if said attribute is set and and returns if it 
+		# is, which will close the thread that called this function to close 
+		# gracefully.
+		if screen.mother.exiting.is_set():
+			return
+
 		difference = af.distance_to_point(center_coords, end_of_line)
 
-		this = "Getting all systems between start and end "
-		that = "(distance = {} ly). This will take some time...".format(int(difference))
+		this = "Getting all systems between start and end (distance to be "
+		that = "covered: {} ly). This will take some time...".format(int(difference))
 		print(this + that)
+		screen.star_search_text.setText(this + that)
 
 		this_section_stars = stars_in_cubes_around_line(center_coords, \
-										perpendicular_vector_1, perpendicular_vector_2)
+							perpendicular_vector_1, perpendicular_vector_2, screen)
 		stars = extract_information(stars, this_section_stars)
 
 		# In general is the line NOT perpendicular to the cubes sides. 
@@ -252,7 +273,33 @@ def find_systems_online(start_coords, end_coords):
 		center_coords['y'] = center_coords['y'] + 200 * unit_vector['y']
 		center_coords['z'] = center_coords['z'] + 200 * unit_vector['z']
 
-	return stars
+	this = "Fetched {} stars.\n\n".format(len(stars))
+	that = "The results are saved in the stars-file in the installation directory."
+	screen.star_search_text.setText(this + that)
+
+	screen.stars = stars
+	screen.searching_stars = False
+
+
+
+# Just a small method to download the neutron stars file. It is target of 
+# a separate thread in _download_neutron_file()
+# < screen > is the screen of the gui that calls this function (which would 
+# be an instande of ScreenWork).
+def fetch_neutron_file(screen):
+	screen.downloading_neutron_file = True
+	url = 'https://edastro.com/mapcharts/files/neutron-stars.csv'
+	download = False
+
+	print("Downloading the Neutron Star file. This may take a while ...")
+	this = requests.get(url)
+
+	# Save the file, but don't forget ...
+	with open('./neutron-stars.csv', 'wb') as f:
+		# ... < this > is NOT the file itself!
+		f.write(this.content)
+
+	screen.downloading_neutron_file = False
 
 
 

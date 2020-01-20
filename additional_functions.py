@@ -1,4 +1,4 @@
-#    "additional_functions" (v1.1)
+#    "additional_functions" (v2.0)
 #    Copyright 2019 Soren Heinze
 #    soerenheinze (at) gmx (dot) de
 #    5B1C 1897 560A EF50 F1EB 2579 2297 FAE4 D9B5 2A35
@@ -71,46 +71,51 @@ def find_closest(stars, start_coords, end_coords):
 
 
 # This takes in all the star-data and creates node-objects.
-def create_nodes(stars, jumpable_distances):
+# < screen > is the instance of class ScreenWork() that calls this function.
+def create_nodes(screen):
+	stars = screen.stars
+
 	total = 0
 	all_nodes = {}
 
 	start = time()
 	for starname, data in stars.items():
+		if screen.mother.exiting.is_set():
+			return
+
 		total += 1
-		node = cd.Node(starname, data, jumpable_distances, stars, all_nodes)
+		node = cd.Node(starname, data, screen.mother.jumpable_distances, stars, all_nodes)
 		all_nodes[starname] = node
 
 		if (total + 1) % 100 == 0:
 			time_so_far = time() - start
 			time_left = len(stars) / total * time_so_far - time_so_far
-			print("processed", total + 1, "of", len(stars), "=>", time_left, 'seconds left')
+			this = "Processed {} of {} stars. ".format(total + 1, len(stars))
+			that = "Finished in ca. {:.2f} seconds.".format(time_left)
+			print(this + that)
+			screen.create_nodes_text.setText(this + that)
 
-	return all_nodes
-
+	screen.pristine_nodes = all_nodes
+	screen.creating_nodes = False
 
 
 # Just to print the complete path information in a pretty way.
-def pretty_print(pristine_nodes, jumper):
-	syswidth = max([len(s) for s in jumper.visited_systems])
+def pretty_print(jumper):
+	text = ''
 	for i in range(len(jumper.visited_systems)):
 		starname = jumper.visited_systems[i]
 		jump_type = jumper.jump_types[i]
 		distance = round(jumper.distances[i], 2)
 
-		node = pristine_nodes[starname]
-		scoopable = node.data['scoopable']
-		x_ = node.data['x']
-		y_ = node.data['y']
-		z_ = node.data['z']
+		this = '{}   =>   {}   =>   {}\n'.format(starname, distance, jump_type)
+		text = text + this
 
-		msg = '{:{syswidth}}  ' + '\t'.join(['{}']*3 + ['{:8.2f}']*3)
-		print(msg.format(starname, distance, jump_type, scoopable, x_, y_, z_, syswidth=syswidth))
-
+	return text
 
 
 # To print the information about the path in a good way.
-def print_jumper_information(pristine_nodes, fewest_jumps_jumper):
+# < screen > is the instance of class ScreenWork() that calls this function.
+def print_jumper_information(fewest_jumps_jumper, screen):
 	if fewest_jumps_jumper:
 		jump_types = fewest_jumps_jumper.jump_types
 		number_jumps = len(fewest_jumps_jumper.visited_systems)
@@ -119,14 +124,15 @@ def print_jumper_information(pristine_nodes, fewest_jumps_jumper):
 		level_2_boosts = len([x for x in jump_types if '2' in x])
 		level_1_boosts = len([x for x in jump_types if '1' in x])
 
-		that = '{} => {}, {}, {}, {}'.format(number_jumps, neutron_boosts, \
-								level_3_boosts, level_2_boosts, level_1_boosts)
-		print("fewest jumps: ", that)
+		this = "Fewest jumps: "
+		that = '{} with {} neutron boosts, '.format(number_jumps, neutron_boosts)
+		siht = '{} grade 3 boosts, {} '.format(level_3_boosts, level_2_boosts)
+		tath = 'grade 2 boosts, {} grade 1 boosts.\n\n'.format(level_1_boosts)
+		info = pretty_print(fewest_jumps_jumper)
 
-		print()
-		input("Below is a list of ALL stars visited (press ENTER): ")
-		pretty_print(pristine_nodes, fewest_jumps_jumper)
-	print()
+		print(this + that + siht + tath + info)
+
+		return this + that + siht + tath + info
 
 
 
@@ -143,42 +149,60 @@ def get_arguments():
 		nigthly dump from EDSM.""",
 		epilog="See README.md for further information.")
 
+	subparsers = parser.add_subparsers(description = 'foo')
+
+	# I want both options, starting the program with command line options
+	# or running the gui which shall require no arguments at al. Thus, I need 
+	# subparsers that are able to handle these two cases.
+	# 
+	# Running the gui shall be the default behavior and take place by simply 
+	# calling the program without any arguments. Thus, the "name" of this 
+	# subparser is empty.
+	# Also: this subparser will NOT get any arguments, since all parameters
+	# will be provided by the user via the gui (obviously)
+	parser_gui = subparsers.add_parser("gui")
+
+	# The second parser however has the name "no_gui" which needs to be stated
+	# right after the program name. Below this parser does get more arguments.
+	parser_no_gui = subparsers.add_parser("no_gui")
+
 	# From the parser-documentation:
 	# Any internal < - > characters will be converted to < _ > characters to 
 	# make sure the string is a valid attribute name.
+
 	text = "Ship range with a full fuel tank (required)"
-	parser.add_argument('--jumprange','-r', metavar = 'LY', required = True, \
+	parser_no_gui.add_argument('--jumprange','-r', metavar = 'LY', required = True, \
 													type = float, help = text)
 
 	text = "Ship range with fuel for one jump (defaults equal to range)."
-	parser.add_argument('--range-on-fumes','-rf', metavar = 'LY', \
+	parser_no_gui.add_argument('--range-on-fumes','-rf', metavar = 'LY', \
 													type = float, help = text)
 
 	text = "Galactic coordinates to start routing from."
-	parser.add_argument('--startcoords','-s', nargs = 3, metavar = ('X','Y','Z'), \
+	parser_no_gui.add_argument('--startcoords','-s', nargs = 3, metavar = ('X','Y','Z'), \
 									type = float, required = True, help = text)
 
 	text = "Galactic coordinates of target destination."
-	parser.add_argument('--destcoords','-d', nargs = 3, metavar = ('X','Y','Z'), \
+	parser_no_gui.add_argument('--destcoords','-d', nargs = 3, metavar = ('X','Y','Z'), \
 									required = True, type = float, help = text)
 
 	this = "Utilize Neutron boosting. The necessary file will be downloaded "
 	that = "automatically."
-	parser.add_argument('--neutron-boosting','-nb', metavar = ('True/False'), \
+	parser_no_gui.add_argument('--neutron-boosting','-nb', metavar = ('True/False'), \
 							type = bool, default = False, help = this + that)
 
 	text = "Reuse nodes data from previous run"
-	parser.add_argument('--cached', action = 'store_true', help = text)
+	parser_no_gui.add_argument('--cached', action = 'store_true', help = text)
 
 	text = "Path to EDSM system coordinates JSON file."
-	parser.add_argument('--starsfile', metavar = 'FILE', help = text)
+	parser_no_gui.add_argument('--starsfile', metavar = 'FILE', help = text)
 
 	text = "How many times to shuffle and reroute before returning best result (default 23)."
-	parser.add_argument('--max-tries','-N', metavar = 'N', type = int, \
+	parser_no_gui.add_argument('--max-tries','-N', metavar = 'N', type = int, \
 													default = 23, help = text)
 
 	text = "Enable verbose logging"
-	parser.add_argument('--verbose','-v', action = 'store_true', help = text)
+	parser_no_gui.add_argument('--verbose','-v', action = 'store_true', help = text)
 
 	args = parser.parse_args()
 
@@ -189,31 +213,20 @@ def get_arguments():
 # In case neutron boosting shall be allowed, the necessary information must
 # be provided. The file with all known neutron stars can be found here: 
 # https://edastro.com/mapcharts/files/neutron-stars.csv
-# This function checks if a local copy of the file exists and how old it is. 
-# If it doesn't exist or is older than two days the file will be downloaded.
-def fetch_neutron_file():
-	url = 'https://edastro.com/mapcharts/files/neutron-stars.csv'
-	download = False
-
+# This function checks if a local copy of the file exists and how old it is.
+def neutron_file_ok():
 	# First, check if the file exists.
 	if not os.path.isfile('./neutron-stars.csv'):
-		download = True
+		return False
 	else:
 		# Second, check if the file is older than 48 hours.
 		# getmtime() gets the unix time when the file was created.
 		age = time() - os.path.getmtime('./neutron-stars.csv')
 		# The file is updated every 2nd day or every 172,800 seconds.
 		if age > 172800:
-			download = True
+			return False
 
-	if download:
-		print("Downloading the Neutron Star file. This may take a while ...")
-		this = requests.get(url)
-
-		# Save the file, but don't forget ...
-		with open('./neutron-stars.csv', 'wb') as f:
-			# ... < this > is NOT the file itself!
-			f.write(this.content)
+	return True
 
 
 

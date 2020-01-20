@@ -1,4 +1,4 @@
-#    "find_route" (v1.1)
+#    "find_route" (v2.0)
 #    Copyright 2019 Soren Heinze
 #    soerenheinze (at) gmx (dot) de
 #    5B1C 1897 560A EF50 F1EB 2579 2297 FAE4 D9B5 2A35
@@ -23,7 +23,6 @@ import additional_functions as af
 from random import shuffle
 from copy import deepcopy
 import class_definitions as cd
-
 
 # A jumper needs to be initialized in the startnode.
 def create_jumper_at_start(start_star, all_nodes):
@@ -103,7 +102,7 @@ def get_nodes_that_can_send_jumpers(all_nodes, this_distance):
 
 
 # This does all the above and finds a way from start to end (or not).
-def explore_path(all_nodes, stars, final_node):
+def explore_path(all_nodes, final_node):
 	# This is the index of the possible jump distances in the 
 	# jump_distances-attribute of the Node-class.
 	this_distance = 0
@@ -184,7 +183,8 @@ def explore_path(all_nodes, stars, final_node):
 # This function figures out if the jumper that reached the final node during 
 # the current loop uses less jumps or less boosts than the current best jumper.
 # < data > is a tuple that contains information from the previous jumps
-def better_jumper(i, max_tries, jumper, data):
+# < screen > is the instance of class ScreenWork() that calls this function.
+def better_jumper(i, max_tries, jumper, data, screen):
 	fewest_jumps_jumper = data[0]
 	fewest_jumps = data[1]
 	level_3_boosts = data[2]
@@ -196,12 +196,14 @@ def better_jumper(i, max_tries, jumper, data):
 	new_level_1_boosts = len([x for x in jumper.jump_types if '1' in x])
 	number_jumps = len(jumper.visited_systems)
 
-	this = 'Try {} of {}. '.format(i + 1, max_tries)
-	that = 'Did {} jumps with {} level 3 boosts, '.format(number_jumps, \
+	text = screen.pathfinding_text.text().split('\nLast try')[0]
+	this = 'Last try (#{} of {}) needed '.format(i + 1, max_tries)
+	that = '{} jumps with {} level 3 boosts, '.format(number_jumps, \
 																new_level_3_boosts)
 	siht = '{} level 2 boosts, {} level 1 boosts'.format(new_level_2_boosts, \
 																new_level_1_boosts)
-	print(this + that + siht)
+	screen.pathfinding_text.setText(text + '\n' + this + that + siht)
+	print(text + '\n' + this + that + siht)
 
 	most_better = new_level_3_boosts < level_3_boosts
 	
@@ -236,8 +238,9 @@ def better_jumper(i, max_tries, jumper, data):
 
 # This is the main loop, that will search for the shortest and for the most 
 # economic path as often as < max_tries >.
-def find_path(max_tries, stars, start_star, end_star, \
-									pristine_nodes, neutron_boosting):
+# < screen > is the instance of class ScreenWork() that calls this function.
+def find_path(max_tries, stars, start_star, end_star, pristine_nodes, \
+													neutron_boosting, screen):
 	# This is just for the case that neutron boosting is allowed.
 	way_back_jumper = None
 
@@ -254,13 +257,29 @@ def find_path(max_tries, stars, start_star, end_star, \
 
 	i = 0
 	while i < max_tries:
+		if screen.mother.exiting.is_set():
+			return
+
+		this = screen.pathfinding_text.text().split('\n\n')[0]
+		that = '\n\nTry #{} (of {}) to find a path ...'.format(i + 1, max_tries)
+		# For subsequent iterations it shall be shown how many jumps the 
+		# previous iteration needed. However, the first time around this would 
+		# obviously fail.
+		try:
+			text = screen.pathfinding_text.text().split('find a path ...')[1]
+		except IndexError:
+			text = ''
+
+		screen.pathfinding_text.setText(this + that + text)
+		print(this + that + text)
+
 		# After one loop all nodes are visited. Thus I need the "fresh", 
 		# unvisited nodes for each loop.
 		all_nodes = deepcopy(pristine_nodes)
 		create_jumper_at_start(start_star, all_nodes)
 		final_node = all_nodes[final_name]
 
-		explore_path(all_nodes, stars, final_node)
+		explore_path(all_nodes, final_node)
 
 		if final_node.visited:
 			jumper = final_node.jumper
@@ -274,15 +293,38 @@ def find_path(max_tries, stars, start_star, end_star, \
 			way_back_jumper = way_back(all_nodes, stars, start_star, end_star)
 
 		if jumper:
-			data = better_jumper(i, max_tries, jumper, data)
+			data = better_jumper(i, max_tries, jumper, data, screen)
 		else:
-			print('Try {} of {}. Could NOT find a path.'.format(i, max_tries))
+			this = screen.pathfinding_text.text().split('\nLast try')[0]
+			that = '\nLast try (#{} of {}) could NOT find a path.'.format(i + 1, max_tries)
+			screen.pathfinding_text.setText(this + that)
+			print(this + that + text)
 
 		i += 1
 
-	fewest_jumps_jumper = data[0]
+	if jumper:
+		this = "Finished finding a route. The results are shown below."
+		screen.pathfinding_text.setText(this)
 
-	return fewest_jumps_jumper, way_back_jumper
+		screen.pathfinding_button.setText("Find path")
+
+		fewest_jumps_jumper = data[0]
+
+		screen.fewest_jumps_jumper = fewest_jumps_jumper
+		screen.way_back_jumper = way_back_jumper
+		# When all is done, send the signal to print the results.
+		# See comment the extensive comment to < my_signal > the class ScreenWork
+		# definition in screen_work.py why I have this here.
+		screen.my_signal.emit('PRINT_ME')
+	else:
+		this = screen.pathfinding_text.text()
+		that = '\nThe pathfnding algorithm failed to find a path.\nTry a ship '
+		siht = 'with a larger jumprange.' 
+		screen.pathfinding_text.setText(this + that + siht)
+
+	screen.finding_path = False
+	screen.pathfinding_button.setText("Find path")
+
 
 
 
@@ -342,7 +384,7 @@ def way_back(all_nodes, stars, start_star, end_star):
 	create_jumper_at_start(end_star, all_nodes)
 	final_node = all_nodes[final_name]
 
-	explore_path(all_nodes, stars, final_node)
+	explore_path(all_nodes, final_node)
 
 	if final_node.visited:
 		return final_node.jumper
