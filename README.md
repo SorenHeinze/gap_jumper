@@ -16,25 +16,46 @@ Just put the necessary information (start- and end-coordinates, your jump-ranges
 # Usage
 If you are a windows user and don't want to run the code yourself: simply double click the exe-file. This will start the GUI.
 
-If you want to run the code yourself (recommended) simply call python 3 on a shell/bash/console with the program name as a parameter:
+If you want to run the code yourself (recommended) it is assumed that all necessary modules are installed. It is also assumed that users who run the code themself know how to do that. Simply call python 3 on a shell/bash/console with the program name as a parameter:
 ```
 $ python3 gap_jumper.py
 ```
-That will start the GUI, too. It is assumed that all necessary modules are installed. It is also assumed that users who run the code themself know how to do that.
+That will start the GUI, too. 
 
-Provide the necessary input and press continue. Press the buttons from top to bottom on the next screen. Because the pathfinding algorithm can't start before the necessary isn't provided about the relevant stars between start- and end-point. The necessary information about the relevant stars can't be provided before these are actually found in the database.
+You will see this window (well, the colour might be different):
+![Image of User input window](https://github.com/SorenHeinze/gap_jumper/blob/master/0003_input_screen.png)
 
-An option for looking up the necessary stars online at EDSM is available. However, I recommend to use the offline mode due to server side rate limits (see below). For that the `systemsWithCoordinates.json.gz` from [EDSM Nightly Dumps](https://www.edsm.net/en/nightly-dumps) needs to be downloaded and the unzipped (!) file must be copied into the local directory (the same directory as the code/exe-file(s)). 
+An option for looking up the necessary stars online at EDSM is available. However, I recommend to use the offline mode due to server side rate limits (see below). For that the `systemsWithCoordinates.json.gz` from [EDSM Nightly Dumps](https://www.edsm.net/en/nightly-dumps) needs to be downloaded and the unzipped (!) file must be copied into the local directory. The local directory is the same directory in which the running code (or the the exe-file) is residing. 
 
-If neutron boosting shall be used the neutron star information will be downloaded automatically from [edastro.com](https://edastro.com/mapcharts/files/neutron-stars.csv).
+Provide the necessary input and press continue.  This will lead to the next screen (exampel with Neutron boosting activated):
+![Image of User input window](https://github.com/SorenHeinze/gap_jumper/blob/master/0004_working_screen.png)
 
-During each run, the data for the set of stars considered is cached in the local directory. When the "Used cached stars"-option is chosen, this file is taken instead of querying EDSM or attempting to open the systemsWithCoordinates.json file. This is much faster if you want to adjust your search parameters within the same region of space.
+Press the buttons from top to bottom because the pathfinding algorithm can't start before the necessary information about the relevant stars between start- and end-point isn't provided. The necessary information about the relevant stars can't be provided before these are actually found in the database.
+
+If neutron boosting shall be used the most current neutron star information will be downloaded automatically from [edastro.com](https://edastro.com/mapcharts/files/neutron-stars.csv) after the button marked "A" is pressed.  
+Said button will not be shown if either this option wasn't chosen or if the file is up to date.
+
+Pressing the button marked "B" finds the relevant stars between start- and end-point of the journey.  
+During each run, the data for the set of stars considered is cached in the local directory. When the "Used cached stars"-option is chosen on the input screen, this file is taken instead of querying EDSM or attempting to open the systemsWithCoordinates.json file. This is much faster if you want to adjust your search parameters within the same region of space. In this case the button marked "B" will not be shown.  
+Be aware, that finding the relevant stars takes some time. No matter if the search is conducted online or offline. This is the reason for the "Use cached stars" option.
+
+Pressing the button marked "C" prepares the information from the previous step for the actual pathfinding algorithm.  
+This process can take a lot of time if many stars (many more than approx. 10,000) need to be considered!
+
+Finally, the process to find a path through the void is started by pressing the button marked "D".  
+This process also takes a lot of time if many stars need to be considered.
+
+Execution time of the last two process are reasonable if 10,000 stars or less are used. 13,000 stars are also ok; there is no strict limit. But e.g., 30,000 stars will likely lead to process-times beyond one hour.
+
+The results will be shown in the text-field at the bottom of the screen.
 
 # ATTENTION
 All of the necessary steps need quite some time. And the more stars that need to be considered the more time is needed. But the void is patient.
 
-Note that EDSM enforces rate limits. When fetching stars in the default online mode, this program sends API queries as fast as possible without exceeding the limits. This works out to fetching about 360 requests unthrottled, and one request per ten seconds after that. In terms of the algorithm implemented here, routes of up to about 2000 LY will be fetched unthrottled. Beyond 2000 LY, the throttling means each additional 200 LY will add about 5 minutes.
+The program is meant to be used in areas with a low star density, a.k.a. the edges of the galaxy (or probably between the spiral arms). DON'T use it in areas with moderate or high star density. Or well, you, the user, are free to do whatever you want to do. But if you do that, your memory will be gobbled up and structuring the information and the actual process of finding a path will take forever.
 
-For comparison, the ~1.5 GB `systemsWithCoordinates.json.gz` file can be downloaded over a fast link in about one hour. Thus if you need to plot more than 6-7000 LY, you may be better off downloading the full dataset. However, for such long routes, until the algorithm is further optimized, the time spent computing the route may exceed the download time anyway.
+Note that EDSM enforces rate limits. When fetching stars in the online mode, this program sends API queries as fast as possible without exceeding the limits. This works out to fetching about 360 requests unthrottled, and one request per ten seconds after that. In terms of the algorithm implemented here, routes of up to about 2000 LY will be fetched unthrottled. Beyond 2000 LY, the throttling means each additional 200 LY will add about 5 minutes.
+
+For comparison, the ~1.5 GB `systemsWithCoordinates.json.gz` file can be downloaded over a fast link in about one hour. Thus if you need to plot more than 6-7000 LY, you may be better off downloading the full dataset. 
 
 Discussion of this program, and further description of the motivations and approach, can be found in the Frontier Forum thread: [The ancient automated pathfinder-stations](https://forums.frontier.co.uk/threads/the-ancient-automated-pathfinder-stations.475668/). Additional information can be found in the source code comments.
