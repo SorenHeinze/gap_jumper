@@ -27,7 +27,7 @@ You will see this window (well, the colour might be different):
 
 An option for looking up the necessary stars online at EDSM is available. However, I recommend to use the offline mode due to server side rate limits (see below). For that the `systemsWithCoordinates.json.gz` from [EDSM Nightly Dumps](https://www.edsm.net/en/nightly-dumps) needs to be downloaded and the unzipped (!) file must be copied into the local directory. The local directory is the same directory in which the running code (or the the exe-file) is residing. 
 
-Provide the necessary input and press continue.  This will lead to the next screen (exampel with Neutron boosting activated):
+Provide the necessary input and press continue.  This will lead to the next screen (example with Neutron boosting activated):
 ![Image of User input window](https://github.com/SorenHeinze/gap_jumper/blob/master/0004_working_screen.png)
 
 Press the buttons from top to bottom because the pathfinding algorithm can't start before the necessary information about the relevant stars between start- and end-point isn't provided. The necessary information about the relevant stars can't be provided before these are actually found in the database.
